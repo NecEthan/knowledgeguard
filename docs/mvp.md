@@ -1,5 +1,26 @@
 # MVP
 
+## Project Goal
+
+Build a production style enterprise knowledge platform that demonstrates how AI systems can be made more reliable through strong software engineering, data governance, security, observability, and lifecycle management.
+
+## User Story
+
+1. User signs up and logs in
+2. User uploads a document (PDF, DOCX, TXT, Markdown, or Google Doc)
+3. System processes the document — extracts text, chunks, generates embeddings, indexes
+4. User sees document appear in their document list with processing status
+5. User asks a question in natural language via the AI search interface
+6. System checks permissions, filters to current version, retrieves relevant chunks, generates answer
+7. User receives an answer with a citation showing source document, version, and last updated date
+8. User uploads an updated version of the document
+9. System supersedes the old version and indexes the new one
+10. The same question now returns an answer based on the new version
+11. User deletes a document — system removes it from all indexes and search results
+12. Admin inspects the audit log to review queries, uploads, version changes, and deletions
+
+---
+
 ## Data Sources
 
 The MVP supports:
@@ -696,33 +717,3 @@ Traceable source
 Trustworthy enterprise AI
 ```
 
----
-
-# Why This Is More Than a RAG Demo
-
-KnowledgeGuard is not primarily a chatbot.
-
-The interesting engineering problems are around the infrastructure behind the AI:
-
-1. Document lifecycle management
-2. Version consistency
-3. Permission aware retrieval
-4. Distributed processing
-5. Index synchronisation
-6. Deletion propagation
-7. Auditability
-8. Retrieval evaluation
-9. Observability
-10. Enterprise integrations
-
-The LLM is only one component of the system.
-
-The core product is the governed knowledge layer that makes enterprise AI more reliable.
-
----
-
-# Project Goal
-
-Build a production style enterprise knowledge platform that demonstrates how AI systems can be made more reliable through strong software engineering, data governance, security, observability, and lifecycle management.
-
-**KnowledgeGuard: the trusted knowledge layer for enterprise AI.**
