@@ -42,6 +42,48 @@ Redis was chosen to support the background processing queue. We need to process 
 
 ---
 
+### Database Access — SQLAlchemy
+
+SQLAlchemy is used to interact with PostgreSQL from Python. It provides an ORM layer that maps database tables to Python classes, keeping database logic clean and testable without writing raw SQL throughout the codebase.
+
+---
+
+### Database Migrations — Alembic
+
+Alembic manages database schema changes over time. Every change to the schema is tracked as a versioned migration file. This means the database can be reliably evolve as the application grows, and any environment can be brought to the correct schema state with a single command.
+
+### OCR — Text Extraction from Scanned Documents
+
+Some documents arrive as scanned images rather than machine-readable text. An OCR library extracts the text from these documents before they enter the processing pipeline. Without this step, scanned PDFs would have no retrievable content.
+
+---
+
+### Authentication and Authorisation
+
+Authentication verifies who the user is. Authorisation controls what they are allowed to access. Both are critical in KnowledgeGuard because documents may be restricted to specific users or roles. Permission filtering happens before any content is sent to the LLM, ensuring restricted documents never enter the retrieval context for unauthorised users.
+
+---
+
+### Frontend Unit Testing — Vitest and React Testing Library
+
+Vitest is used as the test runner for frontend unit tests. It integrates with Vite natively, making it fast and simple to configure. React Testing Library is used alongside it to test components by interacting with them the way a user would — querying by visible text and roles rather than implementation details.
+
+Unit tests cover individual components, UI state logic, and data formatting. These run in milliseconds and catch regressions without requiring a running backend.
+
+---
+
+### Backend Unit Testing — Pytest
+
+Pytest was chosen because it provides a simple and flexible testing framework that fits well with our Python and FastAPI backend. Its fixture system makes it straightforward to create reusable test data and dependencies for testing the retrieval pipeline, version filtering, permission checks, and document processing logic. This allows us to test the backend reliably without adding unnecessary complexity.
+
+---
+
+### End-to-End Testing — Playwright
+
+Playwright was chosen because it provides reliable browser automation and strong support for modern web applications. Its ability to run tests across different browsers and handle multiple isolated browser sessions is useful for testing authentication and document permissions. This allows us to reliably test critical workflows such as uploading documents, querying them, verifying document versions, and ensuring users cannot access documents they do not have permission to view.
+
+---
+
 ### Docker
 
 Docker removes the need to install and configure PostgreSQL, Redis, and MinIO directly on a local machine. Each service runs in its own container, spun up from an image.
