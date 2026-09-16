@@ -4,11 +4,11 @@
 
 ---
 
-### Frontend — React
+### Frontend — Next.js
 
-React is a lightweight, component-based library that allows us to include only the libraries we need.
+Next.js was chosen over using React alone because it provides the application structure and production features needed for a full web application while still using React for the UI.
 
-A framework like Angular ships with a large amount of built-in functionality that this project would not use. React keeps the frontend lean and focused.
+It provides built in routing, server side capabilities, middleware, environment configuration and production optimisations, reducing the amount of additional tooling required to build the frontend.
 
 ---
 
@@ -89,3 +89,50 @@ Playwright was chosen because it provides reliable browser automation and strong
 Docker removes the need to install and configure PostgreSQL, Redis, and MinIO directly on a local machine. Each service runs in its own container, spun up from an image.
 
 Any developer can clone the project and bring the full infrastructure up with a single command. This ensures everyone runs the same versions of every service and eliminates environment-specific setup issues.
+
+---
+
+### CI/CD — GitHub Actions
+
+GitHub Actions is the CI/CD platform for KnowledgeGuard. It runs automatically on every pull request and every push, providing fast feedback before changes are merged or deployed.
+
+#### CI Pipeline
+
+Each CI run executes the following checks in order:
+
+1. **Frontend lint** — ESLint validates code quality and catches errors before tests run
+2. **Frontend tests** — Jest runs unit tests covering UI components and logic
+3. **Backend tests** — Pytest runs unit and integration tests covering the API, processing logic, permission filtering, and retrieval pipeline
+4. **Frontend build** — Next.js production build verifies the application compiles without errors
+5. **Playwright E2E tests** — Browser tests verify critical user flows against the full running stack
+
+A failed check stops the pipeline. Stages that follow a failure do not run. Failed Playwright runs produce screenshots, traces, and HTML reports as CI artifacts, making failures diagnosable without reproducing them locally.
+
+#### CD Pipeline
+
+A fully passing CI run on `main` automatically deploys the merged change to the **development environment**. Production deployment occurs after validation in Dev.
+
+#### Pipeline Flow
+
+```text
+Developer
+    ↓
+Pull Request
+    ↓
+GitHub Actions
+    ├── Lint
+    ├── Jest
+    ├── Pytest
+    ├── Build
+    └── Playwright
+    ↓
+Merge to main
+    ↓
+Automatic deployment → Dev
+    ↓
+Production
+```
+
+### Architecture Decision
+
+GitHub Actions was chosen because it integrates directly with GitHub. Separate development and production environments are used, with changes automatically deployed to Dev after passing CI.
