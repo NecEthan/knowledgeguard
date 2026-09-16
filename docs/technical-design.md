@@ -287,7 +287,7 @@ Processing runs asynchronously. The API never blocks on it.
 ### Steps
 
 1. **Receive upload** — API validates file type and size, saves metadata to PostgreSQL with `status = PROCESSING`, stores raw file in MinIO, enqueues a processing job in Redis
-2. **OCR** — if the file is a scanned PDF or image, Tesseract extracts text from each page
+2. **OCR** — if the file is a scanned PDF or image, extracts text from each page
 3. **Text extraction** — PyMuPDF (PDF), python-docx (DOCX), or plain read (TXT/MD) extracts clean text
 4. **Chunking** — text is split into overlapping chunks of ~500 tokens with ~50 token overlap to preserve context at boundaries
 5. **Embedding** — each chunk is sent to the OpenAI Embeddings API (`text-embedding-3-small`) and the returned vector is stored in `document_chunks.embedding`
