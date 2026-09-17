@@ -619,66 +619,6 @@ Stale retrievals
 
 Important knowledge lifecycle events must be traceable.
 
----
-
-# MVP Roadmap
-
-## Phase 1: Foundation
-
-1. Project setup
-2. Authentication
-3. PostgreSQL
-4. Object storage
-5. Document API
-6. Basic UI
-
-## Phase 2: Document Processing
-
-1. PDF processing
-2. DOCX processing
-3. Text extraction
-4. Chunking
-5. Embeddings
-6. Vector search
-7. Processing workers
-8. Retry handling
-
-## Phase 3: AI
-
-1. Natural language queries
-2. RAG
-3. Citations
-4. Current version filtering
-5. Retrieval evaluation
-6. Answer evaluation
-
-## Phase 4: Knowledge Lifecycle
-
-1. Document versioning
-2. Superseded versions
-3. Historical queries
-4. Deletion
-5. Index synchronisation
-6. Audit logging
-
-## Phase 5: Security
-
-1. RBAC
-2. Document permissions
-3. Permission aware retrieval
-4. Security testing
-5. Access audit logs
-
-## Phase 6: Google Docs
-
-1. OAuth
-2. Document import
-3. Change detection
-4. Version creation
-5. Reindexing
-
----
-
 # Success Criteria
 
 The MVP should demonstrate:
