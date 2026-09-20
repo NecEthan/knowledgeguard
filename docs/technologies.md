@@ -64,9 +64,9 @@ Authentication verifies who the user is. Authorisation controls what they are al
 
 ---
 
-### Frontend Unit Testing — Vitest and React Testing Library
+### Frontend Unit Testing — Jest
 
-Vitest is used as the test runner for frontend unit tests. It integrates with Vite natively, making it fast and simple to configure. React Testing Library is used alongside it to test components by interacting with them the way a user would — querying by visible text and roles rather than implementation details.
+Jest is used as the test runner for frontend unit tests. It integrates with Next.js via `next/jest`, which handles the transform configuration without additional setup. React Testing Library is used alongside it to test components by interacting with them the way a user would — querying by visible text and roles rather than implementation details.
 
 Unit tests cover individual components, UI state logic, and data formatting. These run in milliseconds and catch regressions without requiring a running backend.
 

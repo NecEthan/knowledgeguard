@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     secret_key: str = "dev-secret-key-not-for-production"
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/knowledgeguard"
+    database_url: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/knowledgeguard"
+    )
 
     storage_endpoint: str = "http://localhost:9000"
     storage_access_key: str = "minioadmin"

@@ -4,5 +4,5 @@ export default function Home() {
       <h1>KnowledgeGuard</h1>
       <p>Enterprise knowledge platform.</p>
     </main>
-  )
+  );
 }
