@@ -24,5 +24,8 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
 
+    session_cookie_name: str = "kg_session"
+    session_max_age_hours: int = 24
+
 
 settings = Settings()

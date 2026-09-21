@@ -5,11 +5,13 @@ from app.models.base import (
     DocumentPermission,
     DocumentVersion,
     ProcessingJob,
+    Session,
     User,
 )
 
 __all__ = [
     "User",
+    "Session",
     "Document",
     "DocumentVersion",
     "DocumentChunk",
