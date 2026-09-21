@@ -1,5 +1,6 @@
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     DateTime,
     ForeignKey,
@@ -8,6 +9,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -88,8 +90,13 @@ class DocumentVersion(Base):
 
     __table_args__ = (
         UniqueConstraint("document_id", "version_number", name="uq_document_version"),
-        # Partial unique index enforced in migration: one ACTIVE version per document
         Index("ix_document_versions_document_id", "document_id"),
+        Index(
+            "one_active_version_per_document",
+            "document_id",
+            unique=True,
+            postgresql_where=text("status = 'ACTIVE'"),
+        ),
     )
 
 
@@ -104,7 +111,7 @@ class DocumentChunk(Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    # embedding: vector(1536) — added via migration after pgvector extension is enabled
+    embedding: Mapped[list | None] = mapped_column(Vector(1536), nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
