@@ -16,12 +16,15 @@ dependencies = [
     "arq>=0.28.0",
     "pgvector>=0.5.0",
     "bcrypt>=5.0.0",
+    "minio>=7.0.0",
+    "python-multipart>=0.0.7",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8.0",
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
 ]
 
 [build-system]
@@ -40,5 +43,11 @@ select = ["E", "W", "F", "I", "UP"]
 quote-style = "double"
 indent-style = "space"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+testpaths = ["app"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+exclude = ["app/**/test_*.py"]

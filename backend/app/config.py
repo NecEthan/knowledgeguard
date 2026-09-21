@@ -27,5 +27,7 @@ class Settings(BaseSettings):
     session_cookie_name: str = "kg_session"
     session_max_age_hours: int = 24
 
+    max_upload_size_mb: int = 50
+
 
 settings = Settings()

@@ -22,6 +22,6 @@ export async function logout(): Promise<void> {
   );
 }
 
-export async function getMe(): Promise<User> {
-  return httpClient<User>("/auth/me");
+export async function getUser(): Promise<User> {
+  return httpClient<User>("/auth/user");
 }

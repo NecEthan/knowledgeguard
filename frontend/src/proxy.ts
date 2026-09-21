@@ -17,7 +17,7 @@ export function proxy(request: NextRequest) {
 
   if (hasSession && pathname === applicationRoutes.login) {
     return NextResponse.redirect(
-      new URL(applicationRoutes.dashboard, request.url)
+      new URL(applicationRoutes.documents, request.url)
     );
   }
 

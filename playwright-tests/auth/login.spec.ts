@@ -9,6 +9,11 @@ test.describe("Auth flow", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test("unauthenticated /documents redirects to /login", async ({ page }) => {
+    await page.goto("/documents");
+    await expect(page).toHaveURL(/\/login/);
+  });
+
   test("login page renders sign in form", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByLabel("Email")).toBeVisible();
@@ -24,12 +29,12 @@ test.describe("Auth flow", () => {
     await expect(page.getByRole("alert")).toBeVisible();
   });
 
-  test("valid login redirects to /dashboard", async ({ page }) => {
+  test("valid login redirects to /documents", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(EMAIL);
     await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/documents/);
     await expect(page.getByText(EMAIL)).toBeVisible();
   });
 
@@ -38,7 +43,7 @@ test.describe("Auth flow", () => {
     await page.getByLabel("Email").fill(EMAIL);
     await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/documents/);
     await page.getByRole("button", { name: /sign out/i }).click();
     await expect(page).toHaveURL(/\/login/);
   });

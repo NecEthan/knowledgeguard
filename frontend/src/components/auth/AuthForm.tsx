@@ -40,7 +40,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       if (isLogin) {
         await login(email, password);
-        router.push(applicationRoutes.dashboard);
+        router.push(applicationRoutes.documents);
       } else {
         await register(email, password);
         router.push(applicationRoutes.login);

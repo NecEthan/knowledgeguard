@@ -1,4 +1,4 @@
 playwright-tests/node_modules/
 playwright-tests/playwright-reports/
 playwright-tests/test-results/
-playwright-tests/playwright/.auth/
+playwright-tests/.auth/

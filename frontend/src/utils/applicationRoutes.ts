@@ -1,7 +1,7 @@
 export const applicationRoutes = {
   login: "/login",
   register: "/register",
-  dashboard: "/dashboard",
+  documents: "/documents",
 } as const;
 
 export type ApplicationRoute =

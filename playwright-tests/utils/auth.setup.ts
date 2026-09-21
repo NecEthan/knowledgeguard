@@ -17,8 +17,8 @@ setup("seed and authenticate", async ({ page }) => {
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page).toHaveURL(/\/documents/);
 
-  fs.mkdirSync("playwright/.auth", { recursive: true });
-  await page.context().storageState({ path: "playwright/.auth/user.json" });
+  fs.mkdirSync(".auth", { recursive: true });
+  await page.context().storageState({ path: ".auth/user.json" });
 });
