@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -22,6 +23,7 @@ from app.services import storage
 from app.services.documents import compute_hash, generate_storage_key, read_and_validate
 
 router = APIRouter(tags=["documents"])
+logger = logging.getLogger(__name__)
 
 
 async def _enqueue_processing(document_version_id: str) -> None:
@@ -80,9 +82,15 @@ async def upload_document(
         await loop.run_in_executor(None, storage.delete_object, storage_key)
         raise
 
-    #TODO implement polling system to check if job is queued in DB then send to redis -
-    # this ensures if redis is down or we crash here the job is not lost and is still picked up by a worker
-    await _enqueue_processing(str(version.id))
+    # Best-effort enqueue: if Redis is down the job stays QUEUED and the
+    # background poller in main.py will re-enqueue it once Redis recovers.
+    try:
+        await _enqueue_processing(str(version.id))
+        job.status = "DISPATCHED"
+        await db.commit()
+    except Exception:
+        logger.exception("failed to enqueue job %s — poller will retry", job.id)
+
     return DocumentUploadedResponse(id=doc.id, status="accepted")
 
 
