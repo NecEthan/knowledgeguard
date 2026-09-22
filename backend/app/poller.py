@@ -24,12 +24,19 @@ async def _dispatch_stale_jobs() -> None:
             return
         pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
         for job in jobs:
-            await pool.enqueue_job("process_document", str(job.document_version_id))
+            # If error occurs after job is enqueued, the job status will not be set to DISPATCHED
+            # resulting in a job being enqueued twice
+            # enqueue job internally checks if a job with the same _job_id already exists
+            # if does then returns None
+            await pool.enqueue_job(
+                "process_document",
+                str(job.document_version_id),
+                _job_id=f"process_document:{job.document_version_id}",
+            )
             job.status = "DISPATCHED"
         await pool.aclose()
         await db.commit()
-        logger.info("dispatched %d stale job(s) to Redis", len(jobs))
-
+        logger.info("dispatched %d queued job(s) to Redis", len(jobs))
 
 async def run_poller() -> None:
     while True:

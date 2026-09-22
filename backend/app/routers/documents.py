@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 
 async def _enqueue_processing(document_version_id: str) -> None:
     pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-    await pool.enqueue_job("process_document", document_version_id)
+    await pool.enqueue_job(
+        "process_document",
+        document_version_id,
+        _job_id=f"process_document:{document_version_id}",
+    )
     await pool.aclose()
 
 
@@ -76,7 +80,6 @@ async def upload_document(
         )
         db.add(job)
         await db.commit()
-        await db.refresh(doc)
     except Exception:
         await db.rollback()
         await loop.run_in_executor(None, storage.delete_object, storage_key)
@@ -145,7 +148,6 @@ async def update_document(
         raise HTTPException(status_code=404, detail="Document not found")
     doc.title = body.title
     await db.commit()
-    await db.refresh(doc)
     return DocumentResponse.model_validate(doc)
 
 # soft delete
