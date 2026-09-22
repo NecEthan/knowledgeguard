@@ -1,6 +1,8 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+from arq import create_pool
+from arq.connections import RedisSettings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,10 +12,13 @@ from app.routers import audit, auth, documents, health, query
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    task = asyncio.create_task(run_poller())
+async def lifespan(app: FastAPI):
+    pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    app.state.arq_pool = pool
+    task = asyncio.create_task(run_poller(pool))
     yield
     task.cancel()
+    await pool.aclose()
 
 
 app = FastAPI(

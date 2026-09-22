@@ -3,15 +3,13 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from arq import create_pool
-from arq.connections import RedisSettings
+from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends, Form, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import settings
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_arq_pool, get_current_user, get_db
 from app.models.base import Document, DocumentVersion, ProcessingJob, User
 from app.schemas.documents import (
     DocumentDetailResponse,
@@ -26,22 +24,13 @@ router = APIRouter(tags=["documents"])
 logger = logging.getLogger(__name__)
 
 
-async def _enqueue_processing(document_version_id: str) -> None:
-    pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-    await pool.enqueue_job(
-        "process_document",
-        document_version_id,
-        _job_id=f"process_document:{document_version_id}",
-    )
-    await pool.aclose()
-
-
 @router.post("", status_code=202, response_model=DocumentUploadedResponse)
 async def upload_document(
     file: UploadFile,
     title: str = Form(),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    arq_pool: ArqRedis = Depends(get_arq_pool),
 ) -> DocumentUploadedResponse:
     content, content_type = await read_and_validate(file)
     content_hash = compute_hash(content)
@@ -85,10 +74,14 @@ async def upload_document(
         await loop.run_in_executor(None, storage.delete_object, storage_key)
         raise
 
-    # Best-effort enqueue: if Redis is down the job stays QUEUED and the
+    # if Redis is down the job stays QUEUED and the
     # background poller in main.py will re-enqueue it once Redis recovers.
     try:
-        await _enqueue_processing(str(version.id))
+        await arq_pool.enqueue_job(
+            "process_document",
+            str(version.id),
+            _job_id=f"process_document:{version.id}",
+        )
         job.status = "DISPATCHED"
         await db.commit()
     except Exception:

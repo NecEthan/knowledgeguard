@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 
+from arq.connections import ArqRedis
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,10 @@ from app.services.auth import get_valid_session
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
+
+
+async def get_arq_pool(request: Request) -> ArqRedis:
+    return request.app.state.arq_pool
 
 
 async def get_current_user(
