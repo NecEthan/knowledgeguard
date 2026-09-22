@@ -7,3 +7,5 @@ A server-side session was chosen because it provides immediate server-side contr
 ## Upload Doc
 
 I chose a polling publisher because it provides the reliability I need while keeping the architecture simple. The dispatcher checks the PostgreSQL ProcessingJob table for queued jobs and publishes them to Redis, so a crash or Redis outage does not lose a committed job. CDC would provide lower latency and avoid repeated database polling, but it requires database specific transaction log infrastructure and is more complex to operate. Since document processing itself takes considerably longer than a few seconds, the small polling delay is an acceptable tradeoff for a simpler system.
+
+If error occurs after job is enqueued, the job status will not be set to DISPATCHED resulting in a job being enqueued twice because the polling system will pick up jobs with status QUEUED, enqueue job function internally checks if a job with the same \_job_id already exists if does then returns None.

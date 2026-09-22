@@ -30,8 +30,7 @@ test.describe("Documents", () => {
 
     await page.getByRole("button", { name: /upload document/i }).click();
 
-    // After upload the list should refresh and contain the new document
-    await expect(page.getByText(docTitle)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(docTitle)).toBeVisible();
   });
 
   test("delete a document removes it from the list", async ({ page }) => {
@@ -47,12 +46,12 @@ test.describe("Documents", () => {
       buffer: Buffer.from("Delete this document."),
     });
     await page.getByRole("button", { name: /upload document/i }).click();
-    await expect(page.getByText(docTitle)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(docTitle)).toBeVisible();
 
     // Delete it
     const row = page.getByTestId("document-row").filter({ hasText: docTitle });
     await row.getByRole("button", { name: /delete/i }).click();
 
-    await expect(page.getByText(docTitle)).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(docTitle)).not.toBeVisible();
   });
 });
