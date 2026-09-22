@@ -9,7 +9,15 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 
 from app.main import app
-from app.models.base import Document, DocumentVersion, ProcessingJob, Session, User
+from app.models.base import (
+    AuditEvent,
+    Document,
+    DocumentChunk,
+    DocumentVersion,
+    ProcessingJob,
+    Session,
+    User,
+)
 from app.services.auth import hash_password
 
 
@@ -27,11 +35,13 @@ async def test_user(db):
 
     yield user
 
-    # Delete in FK order: jobs → versions → documents → sessions → user
+    # Delete in FK order: chunks/jobs → versions → audit events → documents → sessions → user
     doc_ids = select(Document.id).where(Document.owner_id == user_id)
     version_ids = select(DocumentVersion.id).where(DocumentVersion.document_id.in_(doc_ids))
+    await db.execute(delete(DocumentChunk).where(DocumentChunk.document_version_id.in_(version_ids)))
     await db.execute(delete(ProcessingJob).where(ProcessingJob.document_version_id.in_(version_ids)))
     await db.execute(delete(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids)))
+    await db.execute(delete(AuditEvent).where(AuditEvent.document_id.in_(doc_ids)))
     await db.execute(delete(Document).where(Document.owner_id == user_id))
     await db.execute(delete(Session).where(Session.user_id == user_id))
     await db.execute(delete(User).where(User.id == user_id))

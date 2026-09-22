@@ -27,6 +27,15 @@ def upload_bytes(key: str, data: bytes, content_type: str) -> None:
     )
 
 
+def download_bytes(key: str) -> bytes:
+    response = _client().get_object(settings.storage_bucket, key)
+    try:
+        return response.read()
+    finally:
+        response.close()
+        response.release_conn()
+
+
 def delete_object(key: str) -> None:
     try:
         _client().remove_object(settings.storage_bucket, key)

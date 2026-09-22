@@ -59,6 +59,21 @@ async def read_and_validate(file: UploadFile) -> tuple[bytes, str]:
     return content, detected
 
 
+def detect_content_type(content: bytes) -> str:
+    """Detect content type from magic bytes. Returns 'text/plain' for valid UTF-8 text."""
+    header = content[:4]
+    detected = _MAGIC.get(header)
+    if detected is not None:
+        return detected
+    try:
+        content.decode("utf-8")
+        if b"\x00" not in content:
+            return "text/plain"
+    except UnicodeDecodeError:
+        pass
+    return "application/octet-stream"
+
+
 def compute_hash(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 

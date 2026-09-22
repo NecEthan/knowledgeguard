@@ -8,9 +8,3 @@ Fixtures are split by concern in the fixtures/ folder:
   fixtures/auth.py — test_user, auth_cookies, client, auth_client
   fixtures/arq.py  — mock_pool
 """
-
-pytest_plugins = [
-    "app.routers.fixtures.db",
-    "app.routers.fixtures.auth",
-    "app.routers.fixtures.arq",
-]
