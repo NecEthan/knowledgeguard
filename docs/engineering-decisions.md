@@ -17,3 +17,7 @@ If error occurs after job is enqueued, the job status will not be set to DISPATC
 I added a retry to this pipeline because just cause it fails once does not mean it will fail on the next try if the error is a transient error. I have added list of some key non retryable errors so if we encounter them we do not retry which would waste worker capacity and resources.
 
 Created a new thread for communicating with MinIO because its API calls are synchronous and could block the FastAPI event loop.
+
+Added reaper to recover documents stuck mid-processing. If a worker crashes hard (SIGKILL, power loss), the job stays in PROCESSING forever.
+The reaper runs every 30s and resets any PROCESSING job where updated_at hasn't changed for 10+ minutes back to QUEUED so the
+poller re-dispatches it. Jobs that exceed max attempts are marked FAILED and their MinIO object is deleted.
