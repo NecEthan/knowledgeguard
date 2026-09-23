@@ -49,22 +49,13 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
     version_id = uuid.UUID(document_version_id)
     job_try: int = ctx.get("job_try", 1)
 
-    # ── Phase 1: atomically claim job, load version ───────────────────────────
+    # ── Phase 1: mark job PROCESSING, load version ────────────────────────────
     async with AsyncSessionLocal() as db:
-        # Atomic claim: only one worker wins when multiple pick up the same job.
-        # UPDATE returns the row only if status is still claimable; 0 rows = another
-        # worker already claimed it or the job reached a terminal state.
-        claim_result = await db.execute(
+        await db.execute(
             update(ProcessingJob)
             .where(ProcessingJob.document_version_id == version_id)
-            .where(ProcessingJob.status.in_(["QUEUED", "DISPATCHED"]))
             .values(status="PROCESSING", attempts=ProcessingJob.attempts + 1)
-            .returning(ProcessingJob.document_version_id)
         )
-        if claim_result.scalar_one_or_none() is None:
-            logger.info("Job for version %s already claimed or terminal — skipping", version_id)
-            return
-
         version_result = await db.execute(
             select(DocumentVersion).where(DocumentVersion.id == version_id)
         )

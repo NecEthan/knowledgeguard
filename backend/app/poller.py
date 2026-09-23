@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
 from app.models.base import ProcessingJob
+from app.reaper import reap_stale_processing_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ async def run_poller(pool: ArqRedis) -> None:
     while True:
         await asyncio.sleep(_POLL_INTERVAL)
         try:
+            await reap_stale_processing_jobs()
             await _dispatch_stale_jobs(pool)
         except Exception:
             logger.exception("poller error")
