@@ -48,9 +48,7 @@ async def get_valid_session(db: AsyncSession, token: str) -> Session | None:
 
 
 async def invalidate_session(db: AsyncSession, token: str) -> None:
-    result = await db.execute(
-        select(Session).where(Session.session_token == token)
-    )
+    result = await db.execute(select(Session).where(Session.session_token == token))
     session = result.scalar_one_or_none()
     if session is not None:
         await db.delete(session)

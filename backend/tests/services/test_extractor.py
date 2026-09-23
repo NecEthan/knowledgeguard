@@ -5,8 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.services.extractor import extract_text, _MIN_CHARS_PER_PAGE
-
+from app.services.extractor import _MIN_CHARS_PER_PAGE, extract_text
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,7 +56,9 @@ def test_pdf_extracts_text():
     The page text must exceed _MIN_CHARS_PER_PAGE so OCR is not triggered.
     """
     # 80 chars — safely above the 50-char/page threshold.
-    page_text = "Hello KnowledgeGuard. This is a document text extraction test with content.\n"
+    page_text = (
+        "Hello KnowledgeGuard. This is a document text extraction test with content.\n"
+    )
     mock_doc = _mock_fitz_doc([page_text])
 
     with patch("app.services.extractor.fitz") as mock_fitz:
@@ -143,8 +144,10 @@ def test_text_pdf_does_not_call_ocr():
     dense_text = "Word " * (_MIN_CHARS_PER_PAGE * 2)
     mock_doc = _mock_fitz_doc([dense_text])
 
-    with patch("app.services.extractor.fitz") as mock_fitz, \
-         patch("app.services.extractor._ocr_pdf") as mock_ocr:
+    with (
+        patch("app.services.extractor.fitz") as mock_fitz,
+        patch("app.services.extractor._ocr_pdf") as mock_ocr,
+    ):
         mock_fitz.open.return_value = mock_doc
         extract_text(b"fake pdf bytes", "application/pdf")
 
@@ -156,7 +159,10 @@ def test_text_pdf_does_not_call_ocr():
 
 def test_docx_extracts_text():
     content = _make_docx("Hello from DOCX")
-    result = extract_text(content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    result = extract_text(
+        content,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
     assert "Hello from DOCX" in result
 
 
@@ -170,7 +176,10 @@ def test_docx_multiline():
     doc.save(buf)
     content = buf.getvalue()
 
-    result = extract_text(content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    result = extract_text(
+        content,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
     assert "First paragraph" in result
     assert "Second paragraph" in result
 
@@ -186,7 +195,10 @@ def test_docx_empty_paragraphs_skipped():
     doc.save(buf)
     content = buf.getvalue()
 
-    result = extract_text(content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    result = extract_text(
+        content,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
     assert "Real content" in result
     assert result.strip() == "Real content"
 
@@ -195,7 +207,7 @@ def test_docx_empty_paragraphs_skipped():
 
 
 def test_txt_extracts_utf8():
-    content = "Hello, world! Café résumé.".encode("utf-8")
+    content = "Hello, world! Café résumé.".encode()
     result = extract_text(content, "text/plain")
     assert "Café résumé" in result
 
@@ -216,7 +228,7 @@ def test_txt_handles_invalid_bytes_gracefully():
 
 
 def test_markdown_preserves_text():
-    md = "# Title\n\nSome **bold** text and a [link](http://example.com).".encode("utf-8")
+    md = b"# Title\n\nSome **bold** text and a [link](http://example.com)."
     result = extract_text(md, "text/markdown")
     assert "# Title" in result
     assert "bold" in result

@@ -17,9 +17,7 @@ def _txt_file(name: str = "test.txt") -> dict:
 
 
 async def test_upload_requires_auth(client):
-    response = await client.post(
-        "/documents", files=_txt_file(), data={"title": "Doc"}
-    )
+    response = await client.post("/documents", files=_txt_file(), data={"title": "Doc"})
     assert response.status_code == 401
 
 
@@ -33,8 +31,9 @@ async def test_upload_unsupported_file_type(auth_client):
 
 
 async def test_upload_creates_db_records(auth_client, db, test_user):
-    with patch("app.services.storage.upload_bytes"), patch(
-        "app.services.storage.delete_object"
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
     ):
         response = await auth_client.post(
             "/documents",
@@ -67,8 +66,9 @@ async def test_upload_creates_db_records(auth_client, db, test_user):
 
 
 async def test_upload_enqueues_job(auth_client, mock_pool):
-    with patch("app.services.storage.upload_bytes"), patch(
-        "app.services.storage.delete_object"
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
     ):
         response = await auth_client.post(
             "/documents",
@@ -82,8 +82,9 @@ async def test_upload_enqueues_job(auth_client, mock_pool):
 
 
 async def test_list_documents(auth_client):
-    with patch("app.services.storage.upload_bytes"), patch(
-        "app.services.storage.delete_object"
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
     ):
         await auth_client.post(
             "/documents",
@@ -98,8 +99,9 @@ async def test_list_documents(auth_client):
 
 
 async def test_delete_document(auth_client, db):
-    with patch("app.services.storage.upload_bytes"), patch(
-        "app.services.storage.delete_object"
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
     ):
         upload = await auth_client.post(
             "/documents",
@@ -112,9 +114,7 @@ async def test_delete_document(auth_client, db):
     assert response.status_code == 204
 
     db.expire_all()
-    result = await db.execute(
-        select(Document).where(Document.id == uuid.UUID(doc_id))
-    )
+    result = await db.execute(select(Document).where(Document.id == uuid.UUID(doc_id)))
     doc = result.scalar_one_or_none()
     assert doc is not None
     assert doc.deleted_at is not None

@@ -34,7 +34,9 @@ async def test_dispatch_uses_deterministic_job_id(mock_arq_pool):
     job = _make_job(version_id)
 
     mock_db = AsyncMock()
-    mock_db.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [job])))
+    mock_db.execute = AsyncMock(
+        return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [job]))
+    )
     mock_db.commit = AsyncMock()
 
     @asynccontextmanager
@@ -56,7 +58,9 @@ async def test_dispatch_marks_job_dispatched(mock_arq_pool):
     job = _make_job()
 
     mock_db = AsyncMock()
-    mock_db.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [job])))
+    mock_db.execute = AsyncMock(
+        return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [job]))
+    )
     mock_db.commit = AsyncMock()
 
     @asynccontextmanager
@@ -73,7 +77,9 @@ async def test_dispatch_marks_job_dispatched(mock_arq_pool):
 async def test_dispatch_no_jobs_skips_enqueue(mock_arq_pool):
     """No QUEUED jobs — enqueue_job never called, no commit."""
     mock_db = AsyncMock()
-    mock_db.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: [])))
+    mock_db.execute = AsyncMock(
+        return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: []))
+    )
     mock_db.commit = AsyncMock()
 
     @asynccontextmanager
@@ -93,7 +99,9 @@ async def test_dispatch_multiple_jobs_each_get_unique_job_id(mock_arq_pool):
     jobs = [_make_job(vid) for vid in version_ids]
 
     mock_db = AsyncMock()
-    mock_db.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: jobs)))
+    mock_db.execute = AsyncMock(
+        return_value=MagicMock(scalars=lambda: MagicMock(all=lambda: jobs))
+    )
     mock_db.commit = AsyncMock()
 
     @asynccontextmanager

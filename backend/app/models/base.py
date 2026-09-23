@@ -74,7 +74,7 @@ class DocumentVersion(Base):
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(
         Text, nullable=False
-    )  # PROCESSING | ACTIVE | SUPERSEDED | DELETED | REVIEW_REQUIRED
+    )  # PROCESSING | ACTIVE | SUPERSEDED | DELETED | REVIEW_REQUIRED | FAILED
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     storage_key: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(
@@ -119,6 +119,12 @@ class DocumentChunk(Base):
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
     version: Mapped["DocumentVersion"] = relationship(back_populates="chunks")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "document_version_id", "chunk_index", name="uq_document_chunk_version_index"
+        ),
+    )
 
 
 class DocumentPermission(Base):

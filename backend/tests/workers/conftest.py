@@ -11,7 +11,7 @@ from app.config import settings
 
 @pytest.fixture(autouse=True)
 async def _worker_db_nullpool():
-    """Patch AsyncSessionLocal in workers/main with a NullPool factory.
+    """Patch AsyncSessionLocal in workers with a NullPool factory.
 
     The module-level engine in database.py uses asyncpg's default pool.
     Across function-scoped test event loops that pool can deliver connections
@@ -23,7 +23,10 @@ async def _worker_db_nullpool():
     factory = async_sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
-    with patch("app.workers.main.AsyncSessionLocal", factory), \
-         patch("app.workers.persistence.AsyncSessionLocal", factory):
+    with (
+        patch("app.workers.main.AsyncSessionLocal", factory),
+        patch("app.workers.persistence.AsyncSessionLocal", factory),
+        patch("app.workers.failure.AsyncSessionLocal", factory),
+    ):
         yield
     await engine.dispose()

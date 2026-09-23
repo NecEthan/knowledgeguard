@@ -2,11 +2,12 @@
 
 import uuid
 
-from sqlalchemy import func, update
+from sqlalchemy import delete, func, update
 
 from app.database import AsyncSessionLocal
-from app.models.base import AuditEvent, DocumentChunk, DocumentVersion, ProcessingJob
+from app.models.base import AuditEvent, DocumentChunk, DocumentVersion
 from app.services.chunker import estimate_tokens
+from app.workers.activation import activate_version
 
 
 async def persist_results(
@@ -17,6 +18,7 @@ async def persist_results(
 ) -> None:
     """Atomically write chunks, activate version, and emit audit event."""
     async with AsyncSessionLocal() as db:
+       
         # Insert chunks with embeddings.
         for i, (chunk_content, embedding) in enumerate(zip(raw_chunks, embeddings)):
             db.add(
@@ -39,30 +41,7 @@ async def persist_results(
                 .values(search_vector=func.to_tsvector("english", combined_text))
             )
 
-        # Supersede the existing ACTIVE version for this document (if any).
-        # Must happen before activating the new version to satisfy the
-        # one_active_version_per_document partial unique index.
-        await db.execute(
-            update(DocumentVersion)
-            .where(DocumentVersion.document_id == document_id)
-            .where(DocumentVersion.status == "ACTIVE")
-            .values(status="SUPERSEDED")
-        )
-
-        # Activate the new version.
-        await db.execute(
-            update(DocumentVersion)
-            .where(DocumentVersion.id == version_id)
-            .values(status="ACTIVE")
-        )
-
-        # Mark the processing job complete.
-        await db.execute(
-            update(ProcessingJob)
-            .where(ProcessingJob.document_version_id == version_id)
-            .where(ProcessingJob.status == "PROCESSING")
-            .values(status="COMPLETE")
-        )
+        await activate_version(db, version_id, document_id)
 
         # Emit INDEX_UPDATED audit event.
         db.add(
@@ -74,3 +53,6 @@ async def persist_results(
         )
 
         await db.commit()
+
+
+

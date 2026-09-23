@@ -23,7 +23,10 @@ def extract_text(content: bytes, content_type: str) -> str:
     """
     if content_type == "application/pdf":
         return _extract_pdf(content)
-    if content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    if (
+        content_type
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ):
         return _extract_docx(content)
     if content_type in ("text/plain", "text/markdown"):
         return content.decode("utf-8", errors="replace").strip()

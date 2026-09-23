@@ -1,9 +1,11 @@
 """Unit tests for text chunking."""
 
-import pytest
-
-from app.services.chunker import _TARGET_CHARS, _OVERLAP_CHARS, chunk_text, estimate_tokens
-
+from app.services.chunker import (
+    _OVERLAP_CHARS,
+    _TARGET_CHARS,
+    chunk_text,
+    estimate_tokens,
+)
 
 # ── estimate_tokens ───────────────────────────────────────────────────────────
 
@@ -135,7 +137,7 @@ def test_unicode_text_handled():
 
 
 def test_output_is_deterministic():
-    text = ("Some paragraph text here.\n\n" * 30)
+    text = "Some paragraph text here.\n\n" * 30
     assert chunk_text(text) == chunk_text(text)
 
 

@@ -31,16 +31,26 @@ async def test_user(db):
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    user_id = user.id  # capture before yield — expire_all() in tests makes user.id inaccessible
+    user_id = (
+        user.id
+    )  # capture before yield — expire_all() in tests makes user.id inaccessible
 
     yield user
 
     # Delete in FK order: chunks/jobs → versions → audit events → documents → sessions → user
     doc_ids = select(Document.id).where(Document.owner_id == user_id)
-    version_ids = select(DocumentVersion.id).where(DocumentVersion.document_id.in_(doc_ids))
-    await db.execute(delete(DocumentChunk).where(DocumentChunk.document_version_id.in_(version_ids)))
-    await db.execute(delete(ProcessingJob).where(ProcessingJob.document_version_id.in_(version_ids)))
-    await db.execute(delete(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids)))
+    version_ids = select(DocumentVersion.id).where(
+        DocumentVersion.document_id.in_(doc_ids)
+    )
+    await db.execute(
+        delete(DocumentChunk).where(DocumentChunk.document_version_id.in_(version_ids))
+    )
+    await db.execute(
+        delete(ProcessingJob).where(ProcessingJob.document_version_id.in_(version_ids))
+    )
+    await db.execute(
+        delete(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids))
+    )
     await db.execute(delete(AuditEvent).where(AuditEvent.document_id.in_(doc_ids)))
     await db.execute(delete(Document).where(Document.owner_id == user_id))
     await db.execute(delete(Session).where(Session.user_id == user_id))
