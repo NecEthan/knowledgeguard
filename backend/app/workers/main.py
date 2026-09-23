@@ -17,12 +17,10 @@ from app.services.documents import detect_content_type
 from app.services.embedder import generate_embeddings
 from app.services.extractor import extract_text
 from app.utils.worker_errors import handle_process_job_error
+from app.workers.constants import MAX_TRIES, RETRY_DELAYS
 from app.workers.persistence import persist_results
 
 logger = logging.getLogger(__name__)
-
-_MAX_TRIES = 3
-_RETRY_DELAYS = [10, 60]  # seconds: delay
 
 # Errors that will never succeed on retry — fail immediately.
 _NON_RETRYABLE = (
@@ -68,7 +66,7 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
         "Processing document version %s (attempt %d/%d)",
         version_id,
         job_try,
-        _MAX_TRIES,
+        MAX_TRIES,
     )
 
     try:
@@ -94,8 +92,8 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
             version_id,
             document_id,
             job_try,
-            _MAX_TRIES,
-            _RETRY_DELAYS,
+            MAX_TRIES,
+            RETRY_DELAYS,
             _NON_RETRYABLE,
         )
 
@@ -109,4 +107,4 @@ class WorkerSettings:
 
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     functions = [process_document]
-    max_tries = _MAX_TRIES
+    max_tries = MAX_TRIES

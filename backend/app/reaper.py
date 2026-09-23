@@ -9,11 +9,11 @@ from sqlalchemy import select, update
 from app.database import AsyncSessionLocal
 from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
 from app.services import storage
+from app.workers.constants import MAX_TRIES
 
 logger = logging.getLogger(__name__)
 
 _STALE_THRESHOLD = timedelta(minutes=10)
-_MAX_ATTEMPTS = 3
 
 
 async def reap_stale_processing_jobs() -> None:
@@ -38,7 +38,7 @@ async def reap_stale_processing_jobs() -> None:
 
         keys_to_delete: list[str] = []
         for job, document_id, storage_key in rows:
-            if job.attempts < _MAX_ATTEMPTS:
+            if job.attempts < MAX_TRIES:
                 job.status = "QUEUED"
                 logger.warning(
                     "Reaped stale job for version %s (attempts=%d) — reset to QUEUED",
