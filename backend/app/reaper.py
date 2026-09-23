@@ -1,5 +1,6 @@
 """Stale job reaper — recovers PROCESSING jobs abandoned by hard-crashed workers."""
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -7,6 +8,7 @@ from sqlalchemy import select, update
 
 from app.database import AsyncSessionLocal
 from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
+from app.services import storage
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ async def reap_stale_processing_jobs() -> None:
     threshold = datetime.now(UTC) - _STALE_THRESHOLD
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(ProcessingJob, DocumentVersion.document_id)
+            select(ProcessingJob, DocumentVersion.document_id, DocumentVersion.storage_key)
             .join(DocumentVersion, ProcessingJob.document_version_id == DocumentVersion.id)
             .where(ProcessingJob.status == "PROCESSING")
             .where(ProcessingJob.updated_at < threshold)
@@ -34,7 +36,8 @@ async def reap_stale_processing_jobs() -> None:
         if not rows:
             return
 
-        for job, document_id in rows:
+        keys_to_delete: list[str] = []
+        for job, document_id, storage_key in rows:
             if job.attempts < _MAX_ATTEMPTS:
                 job.status = "QUEUED"
                 logger.warning(
@@ -57,6 +60,7 @@ async def reap_stale_processing_jobs() -> None:
                         version_id=job.document_version_id,
                     )
                 )
+                keys_to_delete.append(storage_key)
                 logger.error(
                     "Reaped stale job for version %s — max attempts exhausted, marked FAILED",
                     job.document_version_id,
@@ -64,3 +68,7 @@ async def reap_stale_processing_jobs() -> None:
 
         await db.commit()
         logger.info("Reaped %d stale PROCESSING job(s)", len(rows))
+
+    loop = asyncio.get_running_loop()
+    for key in keys_to_delete:
+        await loop.run_in_executor(None, storage.delete_object, key)

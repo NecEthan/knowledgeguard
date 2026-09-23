@@ -1,11 +1,13 @@
 """Failure persistence for the document processing pipeline."""
 
+import asyncio
 import uuid
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from app.database import AsyncSessionLocal
 from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
+from app.services import storage
 
 
 async def reset_job_for_retry(version_id: uuid.UUID) -> None:
@@ -26,6 +28,11 @@ async def persist_failure(
 ) -> None:
     """Record permanent failure. Does NOT touch any existing ACTIVE version."""
     async with AsyncSessionLocal() as db:
+        storage_key_result = await db.execute(
+            select(DocumentVersion.storage_key).where(DocumentVersion.id == version_id)
+        )
+        storage_key = storage_key_result.scalar_one_or_none()
+
         await db.execute(
             update(ProcessingJob)
             .where(ProcessingJob.document_version_id == version_id)
@@ -45,3 +52,7 @@ async def persist_failure(
             )
         )
         await db.commit()
+
+    if storage_key:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, storage.delete_object, storage_key)
