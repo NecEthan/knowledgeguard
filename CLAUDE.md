@@ -34,9 +34,9 @@ uv sync --extra dev                          # Install all deps including dev
 uv run uvicorn app.main:app --reload         # Dev server — http://localhost:8000
 uv run ruff check .                          # Lint
 uv run ruff format .                         # Format
-uv run pytest app/ -v                        # All tests
-uv run pytest app/routers/test_documents.py -v   # Single test file
-uv run pytest app/routers/test_documents.py::test_upload_creates_db_records -v  # Single test
+uv run pytest tests/ -v                                                          # All tests
+uv run pytest tests/routers/test_documents.py -v                                 # Single test file
+uv run pytest tests/routers/test_documents.py::test_upload_creates_db_records -v # Single test
 ```
 
 **Integration tests** require postgres running (`docker compose up -d postgres`). MinIO and Redis are mocked. Tests connect to `postgresql+asyncpg://postgres:postgres@localhost:5434/knowledgeguard`.
@@ -90,7 +90,9 @@ Requires all services running. Auth state is persisted to `.auth/user.json` by `
 5. If enqueue succeeds → set job status to DISPATCHED and commit.
 6. If Redis is down → job stays QUEUED; background poller retries it.
 
-**Poller** (`app/poller.py`): runs as an `asyncio.Task` in the lifespan. Every 30 s it queries for QUEUED jobs and enqueues them with the same deterministic `_job_id`, preventing double-enqueue via ARQ's built-in deduplication.
+**Poller** (`app/poller.py`): runs as an `asyncio.Task` in the lifespan. Every 30 s it:
+1. Calls `reap_stale_processing_jobs()` (`app/reaper.py`) — resets PROCESSING jobs stuck for 10+ min (worker hard crash) back to QUEUED; marks FAILED and deletes MinIO object if attempts exhausted.
+2. Queries QUEUED jobs and enqueues them with the same deterministic `_job_id`, preventing double-enqueue via ARQ's built-in deduplication.
 
 ### Data model (key relationships)
 
@@ -106,7 +108,17 @@ Only one `DocumentVersion` per document may have status=ACTIVE (partial unique i
 
 ### Worker
 
-`app/workers/main.py` — arq `WorkerSettings`. `process_document` is a stub; implementing it means text extraction → chunking → embedding → update version status to ACTIVE.
+`app/workers/main.py` — arq `WorkerSettings`. `process_document` pipeline:
+1. Mark `ProcessingJob` PROCESSING, load `DocumentVersion`.
+2. Download raw bytes from MinIO (`run_in_executor` — sync client).
+3. Detect content type → extract text (`app/services/extractor.py`).
+4. Chunk text (`app/services/chunker.py`).
+5. Generate OpenAI embeddings (`app/services/embedder.py`).
+6. `persist_results` (`app/workers/persistence.py`) — insert `DocumentChunk` rows, update search vector, supersede old ACTIVE version, activate new version, emit `INDEX_UPDATED` audit event — all in one transaction.
+
+On error: `app/utils/worker_errors.py` classifies retryable vs non-retryable. Non-retryable (`ValueError`, `openai.AuthenticationError`, `openai.BadRequestError`) → immediate FAILED. Retryable → `raise Retry(defer=N)` up to `MAX_TRIES`. Permanent failure calls `persist_failure` (`app/workers/failure.py`) which also deletes the MinIO object.
+
+Shared retry constant: `app/workers/constants.py` (`MAX_TRIES`, `RETRY_DELAYS`) — used by both worker and reaper.
 
 Run worker: `uv run arq app.workers.main.WorkerSettings` (or via Docker: `worker` service in docker-compose).
 
@@ -122,13 +134,14 @@ UI components are shadcn/ui (in `src/components/ui/`).
 
 ### Backend integration tests
 
-- Co-located with routers: `app/routers/test_*.py`
-- Fixtures in `app/routers/fixtures/` (split by concern: `db.py`, `auth.py`, `arq.py`)
-- `conftest.py` loads them via `pytest_plugins`
+Tests live in `backend/tests/` mirroring the app structure (`routers/`, `workers/`, `services/`).
+
+- Shared fixtures in `tests/fixtures/` (`db.py`, `auth.py`, `arq.py`), loaded via `pytest_plugins` in `tests/conftest.py`
 - `override_db` is autouse — patches `get_db` for every test
 - `_arq_app_state` is autouse — sets `app.state.arq_pool` (lifespan doesn't run in ASGI tests)
 - `mock_pool` overrides the `get_arq_pool` dependency; use when a test needs to assert on `enqueue_job` calls
-- Engine created inside the `db` fixture (not module-level) with `NullPool` — required so asyncpg binds to the per-test event loop
+- Engine created with `NullPool` — required so asyncpg binds to the per-test event loop
+- Worker tests (`tests/workers/`) have their own `conftest.py` that patches `AsyncSessionLocal` in `workers/main.py`, `workers/persistence.py`, and `workers/failure.py` with a NullPool factory to avoid connection-reuse errors across test event loops
 
 ### Frontend unit tests
 
