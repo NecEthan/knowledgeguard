@@ -92,7 +92,6 @@ async def list_documents(
 ) -> list[DocumentResponse]:
     result = await db.execute(
         select(Document)
-        .where(Document.deleted_at.is_(None))
         .where(*sensitivity_filters(current_user))
         .order_by(Document.created_at.desc())
     )

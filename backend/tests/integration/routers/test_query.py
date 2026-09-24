@@ -15,7 +15,6 @@ from app.models.base import (
     AuditEvent,
     Document,
     DocumentChunk,
-    DocumentPermission,
     DocumentVersion,
     User,
 )
@@ -249,7 +248,6 @@ async def test_deleted_document_excluded(auth_client, db, test_user):
         owner_id=test_user.id,
         source_type="upload",
         sensitivity="STANDARD",
-        deleted_at=datetime.now(UTC),
     )
     db.add(doc)
     await db.flush()

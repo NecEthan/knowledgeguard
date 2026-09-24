@@ -2,7 +2,6 @@ from app.models.base import (
     AuditEvent,
     Document,
     DocumentChunk,
-    DocumentPermission,
     DocumentVersion,
     ProcessingJob,
     Session,
@@ -15,7 +14,6 @@ __all__ = [
     "Document",
     "DocumentVersion",
     "DocumentChunk",
-    "DocumentPermission",
     "ProcessingJob",
     "AuditEvent",
 ]

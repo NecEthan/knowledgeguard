@@ -32,7 +32,6 @@ async def upload_document_version(
         select(Document)
         .where(Document.id == document_id)
         .where(*sensitivity_filters(current_user))
-        .where(Document.deleted_at.is_(None))
     )
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -110,7 +109,6 @@ async def list_document_versions(
         select(Document)
         .where(Document.id == document_id)
         .where(*sensitivity_filters(current_user))
-        .where(Document.deleted_at.is_(None))
     )
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -137,7 +135,6 @@ async def get_document_version(
         select(Document)
         .where(Document.id == document_id)
         .where(*sensitivity_filters(current_user))
-        .where(Document.deleted_at.is_(None))
     )
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Document not found")

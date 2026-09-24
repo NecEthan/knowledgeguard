@@ -17,6 +17,7 @@ from app.services.documents import detect_content_type
 from app.services.embedder import generate_embeddings
 from app.services.extractor import extract_text
 from app.utils.worker_errors import handle_process_job_error
+from app.workers.activation import DocumentDeletedError
 from app.workers.constants import MAX_TRIES, RETRY_DELAYS
 from app.workers.persistence import persist_results
 
@@ -57,7 +58,13 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
         version_result = await db.execute(
             select(DocumentVersion).where(DocumentVersion.id == version_id)
         )
-        version = version_result.scalar_one()
+        version = version_result.scalar_one_or_none()
+        if version is None:
+            # Document was deleted before the worker started — nothing to do.
+            logger.info(
+                "Version %s not found — document was deleted, skipping", version_id
+            )
+            return
         document_id = version.document_id
         storage_key = version.storage_key
         await db.commit()
@@ -85,6 +92,23 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
 
         # ── Phase 4: persist results atomically ──────────────────────────────
         await persist_results(version_id, document_id, raw_chunks, embeddings)
+
+    except DocumentDeletedError:
+        # Document was deleted mid-processing — abort cleanly without retry.
+        logger.info(
+            "Document %s deleted mid-processing — aborting version %s",
+            document_id,
+            version_id,
+        )
+        async with AsyncSessionLocal() as cleanup_db:
+            await cleanup_db.execute(
+                update(ProcessingJob)
+                .where(ProcessingJob.document_version_id == version_id)
+                .where(ProcessingJob.status == "PROCESSING")
+                .values(status="FAILED", last_error="Document deleted")
+            )
+            await cleanup_db.commit()
+        return
 
     except Exception as exc:
         await handle_process_job_error(

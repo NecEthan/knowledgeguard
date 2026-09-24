@@ -33,7 +33,6 @@ class DocumentResponse(BaseModel):
     source_type: str
     sensitivity: str
     created_at: datetime
-    deleted_at: datetime | None
 
 
 class DocumentDetailResponse(DocumentResponse):

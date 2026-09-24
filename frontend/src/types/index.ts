@@ -18,7 +18,6 @@ export interface Document {
   source_type: DocumentSourceType;
   sensitivity: DocumentSensitivity;
   created_at: string;
-  deleted_at: string | null;
 }
 
 export type DocumentVersionStatus =

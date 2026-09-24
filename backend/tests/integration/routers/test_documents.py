@@ -119,9 +119,7 @@ async def test_delete_document(auth_client, db):
 
     db.expire_all()
     result = await db.execute(select(Document).where(Document.id == uuid.UUID(doc_id)))
-    doc = result.scalar_one_or_none()
-    assert doc is not None
-    assert doc.deleted_at is not None
+    assert result.scalar_one_or_none() is None
 
 
 async def test_user_cannot_upload_sensitive_doc(auth_client):

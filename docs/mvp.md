@@ -487,7 +487,6 @@ documents
     source_type
     sensitivity    -- STANDARD | SENSITIVE
     created_at
-    deleted_at
 ```
 
 Example version:
@@ -657,4 +656,3 @@ Traceable source
 =
 Trustworthy enterprise AI
 ```
-

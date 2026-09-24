@@ -54,15 +54,9 @@ class Document(Base):
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    deleted_at: Mapped[DateTime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
 
     owner: Mapped["User | None"] = relationship(back_populates="documents")
     versions: Mapped[list["DocumentVersion"]] = relationship(back_populates="document")
-    permissions: Mapped[list["DocumentPermission"]] = relationship(
-        back_populates="document"
-    )
 
 
 class DocumentVersion(Base):
@@ -129,31 +123,6 @@ class DocumentChunk(Base):
         ),
     )
 
-
-class DocumentPermission(Base):
-    __tablename__ = "document_permissions"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
-    )
-    granted_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
-    )
-    created_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    document: Mapped["Document"] = relationship(back_populates="permissions")
-
-    __table_args__ = (
-        UniqueConstraint("document_id", "user_id", name="uq_document_user_permission"),
-    )
 
 
 class ProcessingJob(Base):

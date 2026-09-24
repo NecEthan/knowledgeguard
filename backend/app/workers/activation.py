@@ -5,7 +5,11 @@ import uuid
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
+from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob
+
+
+class DocumentDeletedError(Exception):
+    """Raised when a document is deleted mid-processing."""
 
 
 async def activate_version(
@@ -17,7 +21,18 @@ async def activate_version(
 
     Must supersede before activating to satisfy the
     one_active_version_per_document partial unique index.
+
+    Raises DocumentDeletedError if the document was deleted mid-processing.
     """
+    # Guard: abort if document was deleted mid-processing.
+    doc_result = await db.execute(
+        select(Document.id).where(Document.id == document_id)
+    )
+    if doc_result.scalar_one_or_none() is None:
+        raise DocumentDeletedError(
+            f"Document {document_id} was deleted — aborting activation"
+        )
+
     # Capture the current active version so we can emit VERSION_SUPERSEDED.
     result = await db.execute(
         select(DocumentVersion.id)

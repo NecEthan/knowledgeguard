@@ -94,7 +94,6 @@
 
 ### Deletion
 
-47. Deleting a document performs a soft delete (`documents.deleted_at` timestamp set).
 48. All versions for the document are set to `DELETED`.
 49. All `document_chunks` for all versions are deleted.
 50. pgvector embeddings and full-text search index entries are removed.

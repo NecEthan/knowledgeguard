@@ -126,7 +126,6 @@ owner_id    UUID REFERENCES users(id)
 source_type TEXT NOT NULL   -- upload | google_docs
 sensitivity TEXT NOT NULL   -- STANDARD | SENSITIVE
 created_at  TIMESTAMPTZ NOT NULL
-deleted_at  TIMESTAMPTZ     -- soft delete
 ```
 
 ### `document_versions`
@@ -162,18 +161,6 @@ content             TEXT NOT NULL
 embedding           vector(1536)  -- pgvector column
 token_count         INTEGER NOT NULL
 metadata            JSONB
-```
-
-### `document_permissions`
-
-```sql
-id          UUID PRIMARY KEY
-document_id UUID REFERENCES documents(id)
-user_id     UUID REFERENCES users(id)
-granted_by  UUID REFERENCES users(id)
-created_at  TIMESTAMPTZ NOT NULL
-
-UNIQUE (document_id, user_id)
 ```
 
 ### `processing_jobs`
@@ -246,7 +233,7 @@ Request body:
 ```json
 {
   "question": "How many days of annual leave do employees receive?",
-  "mode": "current"  // current | historical
+  "mode": "current" // current | historical
 }
 ```
 
@@ -370,17 +357,15 @@ Transition is atomic. There is never a moment where zero versions are active (as
 
 ## 9. Deletion
 
-Deleting a document triggers a multi-step cleanup. All steps must complete before the document is considered fully removed.
+Deleting a document is a hard delete. All associated rows are removed from the database in FK-dependency order within a single transaction.
 
-1. `documents.deleted_at` set to current timestamp (soft delete)
-2. All versions for the document set to `DELETED`
-3. All `document_chunks` for all versions deleted
-4. pgvector embeddings removed
-5. Full-text search index entries removed
-6. Redis job queue checked — any in-flight processing jobs for this document are cancelled
-7. Audit event emitted
+1. Audit event emitted (`DOCUMENT_DELETED`)
+2. All `document_chunks` for all versions deleted
+3. All `processing_jobs` for all versions deleted
+4. All `document_versions` for the document deleted
+5. The `document` row deleted
 
-After deletion, the document cannot appear in any query result. The permission filter excludes soft-deleted documents. The version filter excludes `DELETED` versions.
+After deletion the document cannot appear in any query result. Access attempts return `404`.
 
 ---
 
@@ -397,10 +382,12 @@ Passwords stored as bcrypt hashes. Minimum 8 characters enforced at registration
 Role and document sensitivity together determine access. Ownership has no effect.
 
 **Roles:**
+
 - `admin` — full access to all documents (STANDARD and SENSITIVE)
 - `user` — access to STANDARD documents only
 
 **Document sensitivity:**
+
 - `STANDARD` — accessible to all authenticated users
 - `SENSITIVE` — accessible to admins only; non-admins cannot upload, list, read, or query sensitive documents
 
@@ -420,18 +407,18 @@ All significant events are written to `audit_events` as append-only records.
 
 Events captured:
 
-| Event | Triggered by |
-| --- | --- |
-| `USER_REGISTERED` | Registration |
-| `USER_LOGIN` | Login |
-| `DOCUMENT_UPLOADED` | Upload |
-| `VERSION_CREATED` | New version upload |
-| `VERSION_SUPERSEDED` | Version transition |
-| `DOCUMENT_DELETED` | Deletion |
-| `QUERY_EXECUTED` | Any query |
-| `PERMISSION_DENIED` | Failed permission check |
-| `PROCESSING_FAILED` | Worker failure |
-| `INDEX_UPDATED` | Successful indexing |
+| Event                | Triggered by            |
+| -------------------- | ----------------------- |
+| `USER_REGISTERED`    | Registration            |
+| `USER_LOGIN`         | Login                   |
+| `DOCUMENT_UPLOADED`  | Upload                  |
+| `VERSION_CREATED`    | New version upload      |
+| `VERSION_SUPERSEDED` | Version transition      |
+| `DOCUMENT_DELETED`   | Deletion                |
+| `QUERY_EXECUTED`     | Any query               |
+| `PERMISSION_DENIED`  | Failed permission check |
+| `PROCESSING_FAILED`  | Worker failure          |
+| `INDEX_UPDATED`      | Successful indexing     |
 
 The audit log is not editable. No update or delete operations on `audit_events`.
 
@@ -439,16 +426,16 @@ The audit log is not editable. No update or delete operations on `audit_events`.
 
 ## 12. Error Handling
 
-| Scenario | Behaviour |
-| --- | --- |
-| Missing or invalid session cookie | `401 Unauthorized` |
-| Permission denied | `403 Forbidden`, audit event written |
-| Document not found | `404 Not Found` |
-| Unsupported file type | `422 Unprocessable Entity` |
-| Processing failure | Version marked `FAILED`, visible in dashboard |
-| LLM API failure | `503 Service Unavailable`, query not answered |
-| Duplicate processing job | Idempotency check prevents duplicate chunks |
-| Version transition failure | Transaction rolled back, previous version stays `ACTIVE` |
+| Scenario                          | Behaviour                                                |
+| --------------------------------- | -------------------------------------------------------- |
+| Missing or invalid session cookie | `401 Unauthorized`                                       |
+| Permission denied                 | `403 Forbidden`, audit event written                     |
+| Document not found                | `404 Not Found`                                          |
+| Unsupported file type             | `422 Unprocessable Entity`                               |
+| Processing failure                | Version marked `FAILED`, visible in dashboard            |
+| LLM API failure                   | `503 Service Unavailable`, query not answered            |
+| Duplicate processing job          | Idempotency check prevents duplicate chunks              |
+| Version transition failure        | Transaction rolled back, previous version stays `ACTIVE` |
 
 ---
 
