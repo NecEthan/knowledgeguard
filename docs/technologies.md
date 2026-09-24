@@ -96,6 +96,12 @@ Any developer can clone the project and bring the full infrastructure up with a 
 
 GitHub Actions is the CI/CD platform for KnowledgeGuard. It runs automatically on every pull request and every push, providing fast feedback before changes are merged or deployed.
 
+Dev: Used by developers to build and manually test new features without affecting production.
+
+Test: Used to run E2E tests so test users and documents do not pollute the Dev environment.
+
+Prod: Used by real users with real data, so tests should never create or modify production data.
+
 #### CI Pipeline
 
 Each CI run executes the following checks in order:
