@@ -2,3 +2,4 @@ playwright-tests/node_modules/
 playwright-tests/playwright-reports/
 playwright-tests/test-results/
 playwright-tests/.auth/
+.env

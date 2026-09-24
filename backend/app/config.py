@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     openai_api_key: str = ""
+    chat_model: str = "gpt-4o-mini"
 
     session_cookie_name: str = "kg_session"
     session_max_age_hours: int = 24

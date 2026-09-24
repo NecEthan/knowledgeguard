@@ -52,6 +52,7 @@ async def test_user(db):
         delete(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids))
     )
     await db.execute(delete(AuditEvent).where(AuditEvent.document_id.in_(doc_ids)))
+    await db.execute(delete(AuditEvent).where(AuditEvent.user_id == user_id))
     await db.execute(delete(Document).where(Document.owner_id == user_id))
     await db.execute(delete(Session).where(Session.user_id == user_id))
     await db.execute(delete(User).where(User.id == user_id))
