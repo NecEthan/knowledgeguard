@@ -1,87 +1,58 @@
 import { test, expect } from "@playwright/test";
+import { DocumentsPage } from "../pom/DocumentsPage";
+import { VersionHistoryPage } from "../pom/VersionHistoryPage";
 
 test.describe("Version History", () => {
   test("version history page shows uploaded document's first version", async ({
     page,
   }) => {
-    await page.goto("/documents");
-
+    const documentsPage = new DocumentsPage(page);
+    const versionHistoryPage = new VersionHistoryPage(page);
     const docTitle = `Versioned doc ${Date.now()}`;
 
-    await page.getByLabel("Title").fill(docTitle);
-    await page.getByLabel("File").setInputFiles({
-      name: "v1.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("This is version one."),
-    });
-    await page.getByRole("button", { name: /upload document/i }).click();
-    await expect(page.getByText(docTitle)).toBeVisible();
+    await documentsPage.goto();
+    await documentsPage.uploadDocument(docTitle, "v1.txt", "This is version one.");
+    await documentsPage.openVersionHistory(docTitle);
 
-    const row = page.getByTestId("document-row").filter({ hasText: docTitle });
-    await row.getByRole("link", { name: /versions/i }).click();
-
-    await expect(page.getByText(/version history/i)).toBeVisible();
-    await expect(page.getByTestId("version-row")).toHaveCount(1);
-    await expect(page.getByTestId("version-row").first()).toContainText("v1");
+    await versionHistoryPage.assertLoaded();
+    await expect(versionHistoryPage.versionRows()).toHaveCount(1);
+    await expect(versionHistoryPage.versionRows().first()).toContainText("v1");
   });
 
   test("uploading a new version appears in version history list", async ({
     page,
   }) => {
-    await page.goto("/documents");
-
+    const documentsPage = new DocumentsPage(page);
+    const versionHistoryPage = new VersionHistoryPage(page);
     const docTitle = `Multi-version doc ${Date.now()}`;
 
-    await page.getByLabel("Title").fill(docTitle);
-    await page.getByLabel("File").setInputFiles({
-      name: "v1.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("Version one content."),
-    });
-    await page.getByRole("button", { name: /upload document/i }).click();
-    await expect(page.getByText(docTitle)).toBeVisible();
+    await documentsPage.goto();
+    await documentsPage.uploadDocument(docTitle, "v1.txt", "Version one content.");
+    await documentsPage.openVersionHistory(docTitle);
 
-    const row = page.getByTestId("document-row").filter({ hasText: docTitle });
-    await row.getByRole("link", { name: /versions/i }).click();
+    await versionHistoryPage.assertLoaded();
+    await expect(versionHistoryPage.versionRows()).toHaveCount(1);
 
-    await expect(page.getByText(/version history/i)).toBeVisible();
-    await expect(page.getByTestId("version-row")).toHaveCount(1);
+    await versionHistoryPage.uploadNewVersion("v2.txt", "Version two content.");
 
-    // Upload version 2
-    await page.getByLabel("File").setInputFiles({
-      name: "v2.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("Version two content."),
-    });
-    await page.getByRole("button", { name: /upload new version/i }).click();
-
-    await expect(page.getByTestId("version-row")).toHaveCount(2);
-
-    // Newest first
-    const versionRows = page.getByTestId("version-row");
-    await expect(versionRows.first()).toContainText("v2");
-    await expect(versionRows.nth(1)).toContainText("v1");
+    await expect(versionHistoryPage.versionRows()).toHaveCount(2);
+    await expect(versionHistoryPage.versionRows().first()).toContainText("v2");
+    await expect(versionHistoryPage.versionRows().nth(1)).toContainText("v1");
   });
 
-  test("back to documents button returns to documents page", async ({ page }) => {
-    await page.goto("/documents");
-
+  test("back to documents button returns to documents page", async ({
+    page,
+  }) => {
+    const documentsPage = new DocumentsPage(page);
+    const versionHistoryPage = new VersionHistoryPage(page);
     const docTitle = `Nav test doc ${Date.now()}`;
 
-    await page.getByLabel("Title").fill(docTitle);
-    await page.getByLabel("File").setInputFiles({
-      name: "nav.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("Navigation test."),
-    });
-    await page.getByRole("button", { name: /upload document/i }).click();
-    await expect(page.getByText(docTitle)).toBeVisible();
+    await documentsPage.goto();
+    await documentsPage.uploadDocument(docTitle, "nav.txt", "Navigation test.");
+    await documentsPage.openVersionHistory(docTitle);
 
-    const row = page.getByTestId("document-row").filter({ hasText: docTitle });
-    await row.getByRole("link", { name: /versions/i }).click();
-
-    await expect(page.getByText(/version history/i)).toBeVisible();
-    await page.getByRole("button", { name: /back to documents/i }).click();
+    await versionHistoryPage.assertLoaded();
+    await versionHistoryPage.goBackToDocuments();
     await expect(page).toHaveURL(/\/documents$/);
   });
 });
