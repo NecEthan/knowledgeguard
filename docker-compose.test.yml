@@ -1,5 +1,5 @@
 services:
-  # ─── Test Infrastructure (infra only — app runs via pytest locally) ───────────
+  # ─── Infrastructure ───────────────────────────────────────────────────────────
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -57,6 +57,81 @@ services:
       mc alias set local http://minio:9000 minioadmin minioadmin &&
       mc mb --ignore-existing local/knowledgeguard-test
       "
+
+  # ─── Application ──────────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      APP_ENV: testing
+      SECRET_KEY: ${SECRET_KEY:-test-secret-key-not-for-production}
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/knowledgeguard_test
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_BUCKET: knowledgeguard-test
+      SESSION_COOKIE_NAME: kg_session_test
+      CORS_ORIGINS: http://localhost:3001
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uv run arq app.workers.main.WorkerSettings
+    environment:
+      APP_ENV: testing
+      SECRET_KEY: ${SECRET_KEY:-test-secret-key-not-for-production}
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/knowledgeguard_test
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_BUCKET: knowledgeguard-test
+      SESSION_COOKIE_NAME: kg_session_test
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      API_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+      SESSION_COOKIE_NAME: kg_session_test
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
 
 volumes:
   postgres_test_data:

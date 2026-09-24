@@ -9,7 +9,8 @@ const PUBLIC_PATHS: string[] = [
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasSession = request.cookies.has("kg_session");
+  const cookieName = process.env.SESSION_COOKIE_NAME ?? "kg_session";
+  const hasSession = request.cookies.has(cookieName);
 
   if (!hasSession && !PUBLIC_PATHS.includes(pathname)) {
     return NextResponse.redirect(new URL(applicationRoutes.login, request.url));

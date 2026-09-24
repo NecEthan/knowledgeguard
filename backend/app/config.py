@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     secret_key: str = "dev-secret-key-not-for-production"
+    cors_origins: str = "http://localhost:3000"
 
     database_url: str = (
         "postgresql+asyncpg://postgres:postgres@localhost:5432/knowledgeguard"

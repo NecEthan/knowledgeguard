@@ -76,6 +76,8 @@ services:
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
       STORAGE_BUCKET: ${STORAGE_BUCKET:-knowledgeguard}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-kg_session_dev}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       postgres:
@@ -104,6 +106,7 @@ services:
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
       STORAGE_BUCKET: ${STORAGE_BUCKET:-knowledgeguard}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-kg_session_dev}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       redis:
@@ -124,6 +127,7 @@ services:
       API_URL: http://backend:8000
       # NEXT_PUBLIC_API_URL is inlined into the browser bundle (host → host).
       NEXT_PUBLIC_API_URL: http://localhost:${BACKEND_PORT:-8000}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-kg_session_dev}
       NEXT_TELEMETRY_DISABLED: "1"
       # Polling ensures file-watch events work reliably on macOS and Windows.
       WATCHPACK_POLLING: "true"
