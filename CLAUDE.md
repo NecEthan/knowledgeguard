@@ -41,11 +41,12 @@ uv run pytest tests/integration/routers/test_documents.py::test_upload_creates_d
 
 **Integration tests** require postgres running (`docker compose up -d postgres`). MinIO and Redis are mocked. Tests connect to `postgresql+asyncpg://postgres:postgres@localhost:5434/knowledgeguard`.
 
-**Alembic** (run inside the backend container):
+**Alembic** (run from `backend/` with postgres running):
 
 ```bash
-docker exec knowledgeguard-backend-1 uv run alembic revision --autogenerate -m "description"
-docker exec knowledgeguard-backend-1 uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "description"
+uv run alembic upgrade head
+uv run alembic downgrade base   # drop all tables (full reset)
 ```
 
 ### Frontend
@@ -70,7 +71,7 @@ npm run test:headed     # Visible browser
 npm run test:ui         # Interactive Playwright UI
 ```
 
-Requires all services running. Auth state is persisted to `.auth/user.json` by `utils/auth.setup.ts` and reused by the `authenticated` project. Two Playwright projects: `unauthenticated` (auth specs) and `authenticated` (documents specs).
+Requires all services running. Auth state is persisted to `.auth/user.json` by `utils/auth.setup.ts` and reused by authenticated projects. Playwright projects: `unauthenticated` (auth specs), `authenticated` (documents specs), `versions` (version history specs), `search` (search specs). Page Object Models live in `pom/`.
 
 ## Backend Architecture
 
@@ -82,13 +83,15 @@ Requires all services running. Auth state is persisted to `.auth/user.json` by `
 
 ### Document upload flow (transactional outbox pattern)
 
-`POST /documents` in `app/routers/documents.py`:
-1. Validate file type (allowed: pdf, txt, docx, md).
-2. Upload bytes to MinIO.
-3. Insert `Document`, `DocumentVersion` (status=PROCESSING), `ProcessingJob` (status=QUEUED) — all in one DB transaction.
-4. Best-effort enqueue to Redis via arq with deterministic `_job_id = f"process_document:{version.id}"`.
-5. If enqueue succeeds → set job status to DISPATCHED and commit.
-6. If Redis is down → job stays QUEUED; background poller retries it.
+`POST /documents` in `app/routers/documents/documents.py`. The `documents/` router is a package split into `documents.py` (list/upload), `document.py` (get/patch/delete by id), `versions.py` (version endpoints), combined in `__init__.py` via `router.routes.extend()`.
+
+1. Validate sensitivity (`STANDARD|SENSITIVE`) — 403 if non-admin uploads SENSITIVE.
+2. Validate file type (allowed: pdf, txt, docx, md).
+3. Upload bytes to MinIO.
+4. Insert `Document`, `DocumentVersion` (status=PROCESSING), `ProcessingJob` (status=QUEUED) — all in one DB transaction.
+5. Best-effort enqueue to Redis via arq with deterministic `_job_id = f"process_document:{version.id}"`.
+6. If enqueue succeeds → set job status to DISPATCHED and commit.
+7. If Redis is down → job stays QUEUED; background poller retries it.
 
 **Poller** (`app/poller.py`): runs as an `asyncio.Task` in the lifespan. Every 30 s it:
 1. Calls `reap_stale_processing_jobs()` (`app/reaper.py`) — resets PROCESSING jobs stuck for 10+ min (worker hard crash) back to QUEUED; marks FAILED and deletes MinIO object if attempts exhausted.
@@ -97,14 +100,34 @@ Requires all services running. Auth state is persisted to `.auth/user.json` by `
 ### Data model (key relationships)
 
 ```
-User
- └── Document (owner_id)
-      └── DocumentVersion (version_number, status: PROCESSING|ACTIVE|SUPERSEDED|DELETED|REVIEW_REQUIRED)
+User (role: admin|user)
+ └── Document (owner_id, sensitivity: STANDARD|SENSITIVE)
+      └── DocumentVersion (version_number, status: PROCESSING|ACTIVE|SUPERSEDED|DELETED|REVIEW_REQUIRED|FAILED)
            ├── DocumentChunk (content + Vector(1536) embedding)
            └── ProcessingJob (status: QUEUED|DISPATCHED|PROCESSING|COMPLETE|FAILED)
 ```
 
 Only one `DocumentVersion` per document may have status=ACTIVE (partial unique index).
+
+### Access control
+
+Role governs all access — ownership has no effect:
+
+| Action | `user` role | `admin` role |
+|---|---|---|
+| Upload STANDARD doc | ✅ | ✅ |
+| Upload SENSITIVE doc | ❌ 403 | ✅ |
+| List / read / edit / delete STANDARD doc | ✅ | ✅ |
+| List / read / edit / delete SENSITIVE doc | ❌ excluded | ✅ |
+| Query RAG — STANDARD results | ✅ | ✅ |
+| Query RAG — SENSITIVE results | ❌ | ✅ |
+
+Sensitivity filter applied in `app/dependencies.py` (`sensitivity_filters(user)`) — returns `[Document.sensitivity == "STANDARD"]` for non-admins, `[]` for admins. Used in all document CRUD routes and `app/services/permissions.py` for RAG.
+
+All new users register as `user` role. Promote to `admin` via direct DB update:
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'you@example.com';
+```
 
 ### Worker
 
@@ -127,7 +150,7 @@ Run worker: `uv run arq app.workers.main.WorkerSettings` (or via Docker: `worker
 `POST /query` in `app/routers/query.py` — full RAG pipeline:
 1. Embed question via `app/services/embedder.py`.
 2. Parallel vector search (`app/services/vector_search.py`) + FTS (`app/services/fts_search.py`).
-3. Fuse results via RRF (`app/services/rrf.py`), filter by permissions (`app/services/permissions.py`).
+3. Fuse results via RRF (`app/services/rrf.py`), filter by role via `build_permitted_doc_ids` (`app/services/permissions.py`) — SENSITIVE docs excluded for non-admins.
 4. Build context string (`app/services/context_builder.py`).
 5. Call LLM (`app/services/llm.py`) — `gpt-4o-mini` by default (`config.chat_model`).
 6. Return `QueryResponse` with citations. Emit `QUERY_EXECUTED` audit event.
@@ -149,7 +172,8 @@ Tests live in `backend/tests/`. Structure:
 - `tests/integration/processing/` — worker/document processing pipeline tests
 - `tests/services/` — unit tests for individual services
 
-- Shared fixtures in `tests/fixtures/` (`db.py`, `auth.py`, `arq.py`), loaded via `pytest_plugins` in `tests/conftest.py`
+- Shared fixtures in `tests/fixtures/` (`db.py`, `auth.py`, `arq.py`), loaded via `pytest_plugins` in `tests/conftest.py` (top-level — NOT in `tests/integration/conftest.py`)
+- `auth.py` provides `test_user` (role=user) and `admin_user`/`admin_client` (role=admin) fixtures
 - `override_db` is autouse — patches `get_db` for every test
 - `_arq_app_state` is autouse — sets `app.state.arq_pool` (lifespan doesn't run in ASGI tests)
 - `mock_pool` overrides the `get_arq_pool` dependency; use when a test needs to assert on `enqueue_job` calls

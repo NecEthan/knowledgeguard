@@ -123,9 +123,10 @@ created_at    TIMESTAMPTZ NOT NULL
 id          UUID PRIMARY KEY
 title       TEXT NOT NULL
 owner_id    UUID REFERENCES users(id)
-source_type TEXT NOT NULL  -- upload | google_docs
+source_type TEXT NOT NULL   -- upload | google_docs
+sensitivity TEXT NOT NULL   -- STANDARD | SENSITIVE
 created_at  TIMESTAMPTZ NOT NULL
-deleted_at  TIMESTAMPTZ  -- soft delete
+deleted_at  TIMESTAMPTZ     -- soft delete
 ```
 
 ### `document_versions`
@@ -211,7 +212,7 @@ Audit events are append-only. No updates or deletes.
 POST   /auth/register
 POST   /auth/login
 POST   /auth/logout
-GET    /auth/me
+GET    /auth/user
 ```
 
 On login, the backend creates a server-side session and sends the session ID to the browser as an `HttpOnly`, `Secure`, `SameSite=Strict` cookie. The browser automatically includes the cookie with subsequent requests over HTTPS.
@@ -314,7 +315,7 @@ Request must include a valid session cookie. The backend validates the session I
 
 ### Step 2 — Permission Filtering
 
-Load the set of document IDs the authenticated user is permitted to access. All subsequent retrieval is scoped to this set. Documents outside this set cannot appear in results under any circumstances.
+Load the set of document IDs the authenticated user is permitted to access based on their role. Non-admins are restricted to `SENSITIVE != 'SENSITIVE'` documents. All subsequent retrieval is scoped to this set. Sensitive documents never appear in results for non-admin users under any circumstances.
 
 ### Step 3 — Version Filtering
 
@@ -393,20 +394,23 @@ Passwords stored as bcrypt hashes. Minimum 8 characters enforced at registration
 
 ### Authorisation
 
-Two levels:
+Role and document sensitivity together determine access. Ownership has no effect.
 
-**Role-based:**
-- `admin` — full access to all documents, audit log, and user management
-- `user` — access only to documents explicitly shared with them
+**Roles:**
+- `admin` — full access to all documents (STANDARD and SENSITIVE)
+- `user` — access to STANDARD documents only
 
-**Document-level:**
-- `document_permissions` table controls which users can access which documents
-- Permission check happens in the retrieval pipeline before any content is loaded
-- A user without a permission record for a document cannot retrieve it, regardless of role
+**Document sensitivity:**
+- `STANDARD` — accessible to all authenticated users
+- `SENSITIVE` — accessible to admins only; non-admins cannot upload, list, read, or query sensitive documents
+
+Permission filter applied at the DB query layer in every document route and in the RAG retrieval pipeline. `SENSITIVE` documents never enter the retrieval pipeline for non-admin users.
+
+All new users register as `user`. Role is promoted via direct DB update (`UPDATE users SET role = 'admin'`). There is no self-service role elevation.
 
 ### Principle
 
-Deny by default. A document is inaccessible unless an explicit permission record exists.
+Deny by default for sensitive content. STANDARD documents are accessible to all authenticated users. SENSITIVE documents are accessible only to admins.
 
 ---
 

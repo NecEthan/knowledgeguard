@@ -485,6 +485,7 @@ documents
     title
     owner_id
     source_type
+    sensitivity    -- STANDARD | SENSITIVE
     created_at
     deleted_at
 ```

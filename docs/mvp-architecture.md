@@ -150,7 +150,7 @@ PostgreSQL
 ├── documents
 ├── document_versions      ← versioned, one CURRENT per document
 ├── document_chunks        ← text + pgvector embeddings
-├── document_permissions   ← who can access what
+├── document_permissions   ← reserved for future per-doc grants (MVP uses role+sensitivity)
 ├── processing_jobs        ← async job state
 └── audit_events           ← immutable event log
 

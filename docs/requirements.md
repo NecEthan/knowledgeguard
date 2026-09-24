@@ -16,17 +16,18 @@
 5. Sessions expire after 24 hours of inactivity.
 6. Sessions can be invalidated server-side at any time.
 7. Users can log out, invalidating their session immediately.
-8. Users can retrieve their own profile (`GET /auth/me`).
+8. Users can retrieve their own profile (`GET /auth/user`).
 
 ---
 
 ### Authorisation
 
 9. Two roles exist: `admin` and `user`.
-10. Admins have full access to all documents and the audit log.
-11. Users can only access documents explicitly shared with them via a permission record.
-12. Access is denied by default. A document is inaccessible unless an explicit permission record exists.
-13. Authorisation checks are performed on every protected request at the backend.
+10. Admins have full access to all documents (STANDARD and SENSITIVE) and the audit log.
+11. Users can access STANDARD documents only. SENSITIVE documents are inaccessible to users regardless of who uploaded them.
+12. Documents have a `sensitivity` field: `STANDARD` or `SENSITIVE`. Sensitivity must be set at upload time.
+13. Only admins can upload SENSITIVE documents. A non-admin attempting to upload a SENSITIVE document receives `403 Forbidden`.
+14. Authorisation checks are performed on every protected request at the backend. Ownership has no effect on access.
 
 ---
 
@@ -105,9 +106,9 @@
 
 ### Permissions
 
-54. Document-level permissions are stored in `document_permissions` (document, user, granted by, created at).
-55. Permission checks are performed before content is retrieved on every query.
-56. A user without a permission record for a document cannot access it, regardless of role.
+54. Access is governed by user role and document sensitivity. There are no per-document permission grants in the MVP.
+55. Permission checks (role vs sensitivity) are performed before content is retrieved on every query.
+56. SENSITIVE documents are excluded from all retrieval pipelines for non-admin users.
 
 ---
 
@@ -170,7 +171,7 @@
 POST   /auth/register
 POST   /auth/login
 POST   /auth/logout
-GET    /auth/me
+GET    /auth/user
 
 POST   /documents
 GET    /documents
