@@ -9,11 +9,14 @@ export interface User {
 
 export type DocumentSourceType = "upload" | "google_docs";
 
+export type DocumentSensitivity = "STANDARD" | "SENSITIVE";
+
 export interface Document {
   id: string;
   title: string;
   owner_id: string;
   source_type: DocumentSourceType;
+  sensitivity: DocumentSensitivity;
   created_at: string;
   deleted_at: string | null;
 }

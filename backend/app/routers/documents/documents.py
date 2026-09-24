@@ -1,12 +1,11 @@
 import asyncio
-import uuid
 
 from arq.connections import ArqRedis
-from fastapi import APIRouter, Depends, Form, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_arq_pool, get_current_user, get_db
+from app.dependencies import get_arq_pool, get_current_user, get_db, sensitivity_filters
 from app.models.base import Document, DocumentVersion, ProcessingJob, User
 from app.schemas.documents import DocumentResponse, DocumentUploadedResponse
 from app.services import storage
@@ -16,14 +15,28 @@ from app.utils.enqueue import enqueue_processing_job
 router = APIRouter(tags=["documents"])
 
 
+_VALID_SENSITIVITIES = {"STANDARD", "SENSITIVE"}
+
+
 @router.post("", status_code=202, response_model=DocumentUploadedResponse)
 async def upload_document(
     file: UploadFile,
     title: str = Form(),
+    sensitivity: str = Form(),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     arq_pool: ArqRedis = Depends(get_arq_pool),
 ) -> DocumentUploadedResponse:
+    if sensitivity not in _VALID_SENSITIVITIES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"sensitivity must be one of {sorted(_VALID_SENSITIVITIES)}",
+        )
+    if sensitivity == "SENSITIVE" and current_user.role != "admin":
+        raise HTTPException(
+            status_code=403, detail="Only admins can upload sensitive documents"
+        )
+
     content, content_type = await read_and_validate(file)
     content_hash = compute_hash(content)
     storage_key = generate_storage_key()
@@ -40,6 +53,7 @@ async def upload_document(
             title=title,
             owner_id=current_user.id,
             source_type="upload",
+            sensitivity=sensitivity,
         )
         db.add(doc)
         await db.flush()
@@ -78,8 +92,8 @@ async def list_documents(
 ) -> list[DocumentResponse]:
     result = await db.execute(
         select(Document)
-        .where(Document.owner_id == current_user.id)
         .where(Document.deleted_at.is_(None))
+        .where(*sensitivity_filters(current_user))
         .order_by(Document.created_at.desc())
     )
     return [DocumentResponse.model_validate(d) for d in result.scalars().all()]

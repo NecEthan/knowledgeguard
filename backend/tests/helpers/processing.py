@@ -26,7 +26,7 @@ async def upload_doc(
         response = await auth_client.post(
             "/documents",
             files={"file": (filename, content, "text/plain")},
-            data={"title": title},
+            data={"title": title, "sensitivity": "STANDARD"},
         )
     assert response.status_code == 202
     return uuid.UUID(response.json()["id"])

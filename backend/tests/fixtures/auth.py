@@ -60,6 +60,64 @@ async def test_user(db):
 
 
 @pytest.fixture
+async def admin_user(db):
+    user = User(
+        email=f"admin+{uuid.uuid4().hex[:8]}@example.com",
+        password_hash=hash_password("password"),
+        role="admin",
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    user_id = user.id
+
+    yield user
+
+    doc_ids = select(Document.id).where(Document.owner_id == user_id)
+    version_ids = select(DocumentVersion.id).where(
+        DocumentVersion.document_id.in_(doc_ids)
+    )
+    await db.execute(
+        delete(DocumentChunk).where(DocumentChunk.document_version_id.in_(version_ids))
+    )
+    await db.execute(
+        delete(ProcessingJob).where(ProcessingJob.document_version_id.in_(version_ids))
+    )
+    await db.execute(
+        delete(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids))
+    )
+    await db.execute(delete(AuditEvent).where(AuditEvent.document_id.in_(doc_ids)))
+    await db.execute(delete(AuditEvent).where(AuditEvent.user_id == user_id))
+    await db.execute(delete(Document).where(Document.owner_id == user_id))
+    await db.execute(delete(Session).where(Session.user_id == user_id))
+    await db.execute(delete(User).where(User.id == user_id))
+    await db.commit()
+
+
+@pytest.fixture
+async def admin_cookies(db, admin_user):
+    token = secrets.token_urlsafe(32)
+    session = Session(
+        session_token=token,
+        user_id=admin_user.id,
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    db.add(session)
+    await db.commit()
+    return {"kg_session": token}
+
+
+@pytest.fixture
+async def admin_client(admin_cookies):
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        cookies=admin_cookies,
+    ) as c:
+        yield c
+
+
+@pytest.fixture
 async def auth_cookies(db, test_user):
     token = secrets.token_urlsafe(32)
     session = Session(

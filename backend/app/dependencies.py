@@ -2,11 +2,12 @@ from collections.abc import AsyncGenerator
 
 from arq.connections import ArqRedis
 from fastapi import Depends, HTTPException, Request
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import AsyncSessionLocal
-from app.models.base import User
+from app.models.base import Document, User
 from app.services.auth import get_valid_session
 
 
@@ -30,3 +31,10 @@ async def get_current_user(
     if session is None:
         raise HTTPException(status_code=401, detail="Session invalid or expired")
     return session.user
+
+
+def sensitivity_filters(current_user: User) -> list[ColumnElement[bool]]:
+    """For non-admin users, restrict access to STANDARD documents only."""
+    if current_user.role == "admin":
+        return []
+    return [Document.sensitivity == "STANDARD"]

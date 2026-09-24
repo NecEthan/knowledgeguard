@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_arq_pool, get_current_user, get_db
+from app.dependencies import get_arq_pool, get_current_user, get_db, sensitivity_filters
 from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob, User
 from app.schemas.documents import DocumentVersionResponse, VersionUploadedResponse
 from app.services import storage
@@ -31,7 +31,7 @@ async def upload_document_version(
     result = await db.execute(
         select(Document)
         .where(Document.id == document_id)
-        .where(Document.owner_id == current_user.id)
+        .where(*sensitivity_filters(current_user))
         .where(Document.deleted_at.is_(None))
     )
     if result.scalar_one_or_none() is None:
@@ -109,7 +109,7 @@ async def list_document_versions(
     result = await db.execute(
         select(Document)
         .where(Document.id == document_id)
-        .where(Document.owner_id == current_user.id)
+        .where(*sensitivity_filters(current_user))
         .where(Document.deleted_at.is_(None))
     )
     if result.scalar_one_or_none() is None:
@@ -136,7 +136,7 @@ async def get_document_version(
     result = await db.execute(
         select(Document)
         .where(Document.id == document_id)
-        .where(Document.owner_id == current_user.id)
+        .where(*sensitivity_filters(current_user))
         .where(Document.deleted_at.is_(None))
     )
     if result.scalar_one_or_none() is None:

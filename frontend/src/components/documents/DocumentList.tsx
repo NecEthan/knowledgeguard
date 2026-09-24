@@ -48,7 +48,14 @@ export function DocumentList({ documents, onDeleted }: DocumentListProps) {
           className="flex items-center justify-between rounded-lg border px-4 py-3"
         >
           <div className="flex flex-col gap-0.5">
-            <span className="font-medium">{doc.title}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{doc.title}</span>
+              {doc.sensitivity === "SENSITIVE" && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                  Sensitive
+                </span>
+              )}
+            </div>
             <span className="text-xs text-muted-foreground">
               {new Date(doc.created_at).toLocaleDateString()}
             </span>

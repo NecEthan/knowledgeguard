@@ -48,6 +48,9 @@ class Document(Base):
     source_type: Mapped[str] = mapped_column(
         Text, nullable=False
     )  # upload | google_docs
+    sensitivity: Mapped[str] = mapped_column(
+        Text, nullable=False
+    )  # STANDARD | SENSITIVE
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

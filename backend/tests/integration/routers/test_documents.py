@@ -17,7 +17,11 @@ def _txt_file(name: str = "test.txt") -> dict:
 
 
 async def test_upload_requires_auth(client):
-    response = await client.post("/documents", files=_txt_file(), data={"title": "Doc"})
+    response = await client.post(
+        "/documents",
+        files=_txt_file(),
+        data={"title": "Doc", "sensitivity": "STANDARD"},
+    )
     assert response.status_code == 401
 
 
@@ -25,7 +29,7 @@ async def test_upload_unsupported_file_type(auth_client):
     response = await auth_client.post(
         "/documents",
         files={"file": ("evil.exe", b"\x4d\x5a\x00\x00", "application/octet-stream")},
-        data={"title": "Bad file"},
+        data={"title": "Bad file", "sensitivity": "STANDARD"},
     )
     assert response.status_code == 415
 
@@ -38,7 +42,7 @@ async def test_upload_creates_db_records(auth_client, db, test_user):
         response = await auth_client.post(
             "/documents",
             files=_txt_file(),
-            data={"title": "My Doc"},
+            data={"title": "My Doc", "sensitivity": "STANDARD"},
         )
 
     assert response.status_code == 202
@@ -73,7 +77,7 @@ async def test_upload_enqueues_job(auth_client, mock_pool):
         response = await auth_client.post(
             "/documents",
             files=_txt_file(),
-            data={"title": "Enqueue test"},
+            data={"title": "Enqueue test", "sensitivity": "STANDARD"},
         )
 
     assert response.status_code == 202
@@ -89,7 +93,7 @@ async def test_list_documents(auth_client):
         await auth_client.post(
             "/documents",
             files=_txt_file(),
-            data={"title": "Listed Doc"},
+            data={"title": "Listed Doc", "sensitivity": "STANDARD"},
         )
 
     response = await auth_client.get("/documents")
@@ -106,7 +110,7 @@ async def test_delete_document(auth_client, db):
         upload = await auth_client.post(
             "/documents",
             files=_txt_file(),
-            data={"title": "To Delete"},
+            data={"title": "To Delete", "sensitivity": "STANDARD"},
         )
     doc_id = upload.json()["id"]
 
@@ -118,3 +122,70 @@ async def test_delete_document(auth_client, db):
     doc = result.scalar_one_or_none()
     assert doc is not None
     assert doc.deleted_at is not None
+
+
+async def test_user_cannot_upload_sensitive_doc(auth_client):
+    with patch("app.services.storage.upload_bytes"):
+        response = await auth_client.post(
+            "/documents",
+            files=_txt_file(),
+            data={"title": "Secret", "sensitivity": "SENSITIVE"},
+        )
+    assert response.status_code == 403
+
+
+async def test_admin_can_upload_sensitive_doc(admin_client):
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
+    ):
+        response = await admin_client.post(
+            "/documents",
+            files=_txt_file(),
+            data={"title": "Admin Secret", "sensitivity": "SENSITIVE"},
+        )
+    assert response.status_code == 202
+
+
+async def test_user_cannot_see_sensitive_docs(auth_client, admin_client):
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
+    ):
+        await admin_client.post(
+            "/documents",
+            files=_txt_file(),
+            data={"title": "Hidden From Users", "sensitivity": "SENSITIVE"},
+        )
+
+    response = await auth_client.get("/documents")
+    assert response.status_code == 200
+    titles = [d["title"] for d in response.json()]
+    assert "Hidden From Users" not in titles
+
+
+async def test_admin_sees_sensitive_docs(admin_client):
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
+    ):
+        await admin_client.post(
+            "/documents",
+            files=_txt_file(),
+            data={"title": "Admin Visible", "sensitivity": "SENSITIVE"},
+        )
+
+    response = await admin_client.get("/documents")
+    assert response.status_code == 200
+    titles = [d["title"] for d in response.json()]
+    assert "Admin Visible" in titles
+
+
+async def test_upload_invalid_sensitivity(auth_client):
+    with patch("app.services.storage.upload_bytes"):
+        response = await auth_client.post(
+            "/documents",
+            files=_txt_file(),
+            data={"title": "Bad", "sensitivity": "TOPSECRET"},
+        )
+    assert response.status_code == 422

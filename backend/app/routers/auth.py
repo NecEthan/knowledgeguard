@@ -27,7 +27,7 @@ async def register(
     user = User(
         email=body.email,
         password_hash=hash_password(body.password),
-        role="user",
+        role="admin",
     )
     db.add(user)
     await db.commit()

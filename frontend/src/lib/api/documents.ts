@@ -22,10 +22,12 @@ export interface DocumentUploadedResponse {
 export async function uploadDocument(
   file: File,
   title: string,
+  sensitivity: string,
 ): Promise<DocumentUploadedResponse> {
   const form = new FormData();
   form.append("file", file);
   form.append("title", title);
+  form.append("sensitivity", sensitivity);
 
   const res = await fetch(`${API_BASE_URL}/documents`, {
     method: "POST",

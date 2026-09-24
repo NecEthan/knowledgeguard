@@ -22,7 +22,7 @@ async def _upload_doc(auth_client) -> str:
         response = await auth_client.post(
             "/documents",
             files={"file": ("v1.txt", b"Version one content", "text/plain")},
-            data={"title": "Versioned Doc"},
+            data={"title": "Versioned Doc", "sensitivity": "STANDARD"},
         )
     assert response.status_code == 202
     return response.json()["id"]

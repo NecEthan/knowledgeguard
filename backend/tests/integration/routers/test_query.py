@@ -71,6 +71,7 @@ async def indexed_document(db, test_user):
         title="Annual Leave Policy",
         owner_id=test_user.id,
         source_type="upload",
+        sensitivity="STANDARD",
     )
     db.add(doc)
     await db.flush()
@@ -247,6 +248,7 @@ async def test_deleted_document_excluded(auth_client, db, test_user):
         title="Deleted Doc",
         owner_id=test_user.id,
         source_type="upload",
+        sensitivity="STANDARD",
         deleted_at=datetime.now(UTC),
     )
     db.add(doc)
@@ -304,6 +306,7 @@ async def test_current_mode_excludes_superseded(auth_client, db, test_user):
         title="Policy v1",
         owner_id=test_user.id,
         source_type="upload",
+        sensitivity="STANDARD",
     )
     db.add(doc)
     await db.flush()
@@ -356,6 +359,7 @@ async def test_historical_mode_includes_superseded(auth_client, db, test_user):
         title="Historical Policy",
         owner_id=test_user.id,
         source_type="upload",
+        sensitivity="STANDARD",
     )
     db.add(doc)
     await db.flush()
@@ -421,6 +425,7 @@ async def test_restricted_document_not_visible_to_other_user(auth_client, db, te
         title="User B Confidential",
         owner_id=user_b.id,
         source_type="upload",
+        sensitivity="STANDARD",
     )
     db.add(doc_b)
     await db.flush()
@@ -492,6 +497,7 @@ async def test_restricted_document_not_visible_historical_mode(auth_client, db, 
         title="User C Old Document",
         owner_id=user_c.id,
         source_type="upload",
+        sensitivity="STANDARD",
     )
     db.add(doc_c)
     await db.flush()
