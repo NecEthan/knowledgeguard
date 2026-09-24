@@ -34,9 +34,9 @@ uv sync --extra dev                          # Install all deps including dev
 uv run uvicorn app.main:app --reload         # Dev server — http://localhost:8000
 uv run ruff check .                          # Lint
 uv run ruff format .                         # Format
-uv run pytest tests/ -v                                                          # All tests
-uv run pytest tests/routers/test_documents.py -v                                 # Single test file
-uv run pytest tests/routers/test_documents.py::test_upload_creates_db_records -v # Single test
+uv run pytest tests/ -v                                                                                    # All tests
+uv run pytest tests/integration/routers/test_documents.py -v                                               # Single test file
+uv run pytest tests/integration/routers/test_documents.py::test_upload_creates_db_records -v               # Single test
 ```
 
 **Integration tests** require postgres running (`docker compose up -d postgres`). MinIO and Redis are mocked. Tests connect to `postgresql+asyncpg://postgres:postgres@localhost:5434/knowledgeguard`.
@@ -122,26 +122,39 @@ Shared retry constant: `app/workers/constants.py` (`MAX_TRIES`, `RETRY_DELAYS`) 
 
 Run worker: `uv run arq app.workers.main.WorkerSettings` (or via Docker: `worker` service in docker-compose).
 
+### Query pipeline
+
+`POST /query` in `app/routers/query.py` — full RAG pipeline:
+1. Embed question via `app/services/embedder.py`.
+2. Parallel vector search (`app/services/vector_search.py`) + FTS (`app/services/fts_search.py`).
+3. Fuse results via RRF (`app/services/rrf.py`), filter by permissions (`app/services/permissions.py`).
+4. Build context string (`app/services/context_builder.py`).
+5. Call LLM (`app/services/llm.py`) — `gpt-4o-mini` by default (`config.chat_model`).
+6. Return `QueryResponse` with citations. Emit `QUERY_EXECUTED` audit event.
+
 ## Frontend Architecture
 
 Next.js 14 App Router. All pages under `src/app/`. API calls go through `src/lib/api/client.ts` using `credentials: "include"` for session cookie passthrough. Types in `src/types/index.ts` mirror the backend data model.
 
-Post-login redirect lands on `/documents`. `/login` and `/register` use the shared `AuthForm` component. Middleware in `src/proxy.ts` handles auth redirects.
+Protected pages live under `src/app/(protected)/` (documents, search) with a shared layout. Public pages (`/login`, `/register`) are at the top level. Middleware in `src/proxy.ts` handles auth redirects. Post-login redirect lands on `/documents`.
 
-UI components are shadcn/ui (in `src/components/ui/`).
+UI components are shadcn/ui (in `src/components/ui/`). Navigation is `src/components/nav/Sidebar.tsx`.
 
 ## Test Patterns
 
 ### Backend integration tests
 
-Tests live in `backend/tests/` mirroring the app structure (`routers/`, `workers/`, `services/`).
+Tests live in `backend/tests/`. Structure:
+- `tests/integration/routers/` — router-level integration tests
+- `tests/integration/processing/` — worker/document processing pipeline tests
+- `tests/services/` — unit tests for individual services
 
 - Shared fixtures in `tests/fixtures/` (`db.py`, `auth.py`, `arq.py`), loaded via `pytest_plugins` in `tests/conftest.py`
 - `override_db` is autouse — patches `get_db` for every test
 - `_arq_app_state` is autouse — sets `app.state.arq_pool` (lifespan doesn't run in ASGI tests)
 - `mock_pool` overrides the `get_arq_pool` dependency; use when a test needs to assert on `enqueue_job` calls
 - Engine created with `NullPool` — required so asyncpg binds to the per-test event loop
-- Worker tests (`tests/workers/`) have their own `conftest.py` that patches `AsyncSessionLocal` in `workers/main.py`, `workers/persistence.py`, and `workers/failure.py` with a NullPool factory to avoid connection-reuse errors across test event loops
+- Processing tests (`tests/integration/processing/`) have their own `conftest.py` that patches `AsyncSessionLocal` in `workers/main.py`, `workers/persistence.py`, and `workers/failure.py` with a NullPool factory to avoid connection-reuse errors across test event loops
 
 ### Frontend unit tests
 

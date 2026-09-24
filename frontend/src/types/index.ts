@@ -19,7 +19,12 @@ export interface Document {
 }
 
 export type DocumentVersionStatus =
-  "PROCESSING" | "ACTIVE" | "SUPERSEDED" | "DELETED" | "REVIEW_REQUIRED";
+  | "PROCESSING"
+  | "ACTIVE"
+  | "SUPERSEDED"
+  | "DELETED"
+  | "REVIEW_REQUIRED"
+  | "FAILED";
 
 export interface DocumentVersion {
   id: string;

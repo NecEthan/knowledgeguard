@@ -41,6 +41,15 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+    {
+      name: "versions",
+      testMatch: /versions\/.+\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: ".auth/user.json",
+      },
+      dependencies: ["setup"],
+    },
   ],
   webServer: {
     command: "npm run dev",

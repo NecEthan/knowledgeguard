@@ -22,6 +22,13 @@ def _fake_embeddings():
 
 
 @pytest.fixture(autouse=True)
+def _mock_storage_delete():
+    """Prevent storage.delete_object from reaching MinIO in processing tests."""
+    with patch("app.services.storage.delete_object"):
+        yield
+
+
+@pytest.fixture(autouse=True)
 async def _worker_db_nullpool():
     """Patch AsyncSessionLocal in workers with a NullPool factory.
 

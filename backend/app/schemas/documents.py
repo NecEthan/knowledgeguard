@@ -8,11 +8,20 @@ class DocumentVersionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    document_id: uuid.UUID
     version_number: int
     status: str
     content_hash: str
     storage_key: str
     created_at: datetime
+    created_by: uuid.UUID | None
+
+
+class VersionUploadedResponse(BaseModel):
+    id: uuid.UUID
+    document_id: uuid.UUID
+    version_number: int
+    status: str
 
 
 class DocumentResponse(BaseModel):

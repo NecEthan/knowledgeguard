@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { Document } from "@/types";
 import { deleteDocument } from "@/lib/api/documents";
@@ -52,14 +53,21 @@ export function DocumentList({ documents, onDeleted }: DocumentListProps) {
               {new Date(doc.created_at).toLocaleDateString()}
             </span>
           </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={deletingId === doc.id}
-            onClick={() => handleDelete(doc.id)}
-          >
-            {deletingId === doc.id ? "Deleting…" : "Delete"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href={`/documents/${doc.id}/versions`}>
+              <Button variant="outline" size="sm">
+                Versions
+              </Button>
+            </Link>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deletingId === doc.id}
+              onClick={() => handleDelete(doc.id)}
+            >
+              {deletingId === doc.id ? "Deleting…" : "Delete"}
+            </Button>
+          </div>
         </div>
       ))}
     </div>
