@@ -57,7 +57,11 @@ export function Sidebar() {
             {user.email}
           </span>
         )}
-        <Button variant="ghost" className="justify-start" onClick={handleLogout}>
+        <Button
+          variant="ghost"
+          className="justify-start"
+          onClick={handleLogout}
+        >
           Sign out
         </Button>
       </div>
