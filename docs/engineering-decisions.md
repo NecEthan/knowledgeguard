@@ -21,3 +21,7 @@ Created a new thread for communicating with MinIO because its API calls are sync
 Added reaper to recover documents stuck mid-processing. If a worker crashes hard (SIGKILL, power loss), the job stays in PROCESSING forever.
 The reaper runs every 30s and resets any PROCESSING job where updated_at hasn't changed for 10+ minutes back to QUEUED so the
 poller re-dispatches it. Jobs that exceed max attempts are marked FAILED and their MinIO object is deleted.
+
+# Updating DOC Metadata
+
+I have decided to use optimistic locking when saving metadata to the DB in case multiple users try to update the same data at the same time, which could result in incorrect data being saved. Optimistic locking is a good fit because it is rare that this scenario will happen, allowing for higher system throughput and lower latency. Whereas something like pessimistic locking would slow down transactions due to locking each row when we modify metadata—which would only save time if most transactions modified the same data because we would not have to keep rolling back or retrying, but this is not the case.
