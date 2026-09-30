@@ -18,17 +18,10 @@ from app.services.embedder import generate_embeddings
 from app.services.extractor import extract_text
 from app.utils.worker_errors import handle_process_job_error
 from app.workers.activation import DocumentDeletedError
-from app.workers.constants import MAX_TRIES, RETRY_DELAYS
+from app.workers.constants import MAX_TRIES
 from app.workers.persistence import persist_results
 
 logger = logging.getLogger(__name__)
-
-# Errors that will never succeed on retry — fail immediately.
-_NON_RETRYABLE = (
-    ValueError,                   # unsupported content type from extract_text
-    openai.AuthenticationError,   # bad API key
-    openai.BadRequestError,       # malformed request (e.g. input too large)
-)
 
 
 async def process_document(ctx: dict, document_version_id: str) -> None:
@@ -117,8 +110,6 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
             document_id,
             job_try,
             MAX_TRIES,
-            RETRY_DELAYS,
-            _NON_RETRYABLE,
         )
 
     logger.info(

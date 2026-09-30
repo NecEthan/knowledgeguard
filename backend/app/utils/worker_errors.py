@@ -4,9 +4,19 @@ import logging
 import uuid
 from typing import NoReturn
 
+import openai
+
 from arq import Retry
 
 from app.workers.failure import persist_failure, reset_job_for_retry
+from backend.app.workers.constants import RETRY_DELAYS
+
+# Errors that will never succeed on retry — fail immediately.
+_NON_RETRYABLE = (
+    ValueError,                   # unsupported content type from extract_text
+    openai.AuthenticationError,   # bad API key
+    openai.BadRequestError,       # malformed request (e.g. input too large)
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +27,6 @@ async def handle_process_job_error(
     document_id: uuid.UUID,
     job_try: int,
     max_tries: int,
-    retry_delays: list[int],
-    non_retryable: tuple,
 ) -> NoReturn:
     """Log, classify, and dispatch job failure.
 
@@ -29,13 +37,13 @@ async def handle_process_job_error(
     error_msg = f"{type(exc).__name__}: {exc}"[:500]
     logger.exception("Version %s failed (attempt %d/%d)", version_id, job_try, max_tries)
 
-    if isinstance(exc, non_retryable):
+    if isinstance(exc, _NON_RETRYABLE):
         logger.error("Non-retryable error for version %s — failing immediately", version_id)
         await persist_failure(version_id, document_id, error_msg)
         raise exc
 
     if job_try < max_tries:
-        delay = retry_delays[job_try - 1]
+        delay = RETRY_DELAYS[job_try - 1]
         await reset_job_for_retry(version_id)
         raise Retry(defer=delay) from exc
 

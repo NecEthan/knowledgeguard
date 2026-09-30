@@ -63,6 +63,34 @@ All data received from the frontend is validated by the backend. The backend can
 
 The backend independently validates uploaded files, including file type and size, before accepting them for processing. Files are assigned a unique identifier and stored separately from the application database.
 
+### Process Uploads
+
+First we set job status to `processing` commit those changes to db to keep job status up to date. The second transation will persist those results (add documentChunks, update vector search with chunks for keyword search) and activate version which sets active version to superseded, sets document we are processing to active and then sets job status to complete.
+
+We then commit these changes to db or if error occured all changes are automatically rolledback and our poll system will pick up the job because status is set to `QUEUED` if processing job failed.
+
+If we did not immediately commit status to processing at the start then the poller may pick up the QUEUED job again while it is being processed because it looks for QUEUED jobs to be processed every now and then.
+
+### Reaper  
+
+I implented a reaper in case local server or cloud server loses power or stops working, in this event our python except block would not execute however the db changes would be automatically rolledback if not commited yet.
+
+If our server dies just after setting job status to `processing` then our job would not be cleaned up in the except block setting status back to `QUEUED` therefore the job would not be picked up again by our poll system and would be stuck forever as status `processing`.
+
+### Poller
+
+I chose to use a poller system to ensure that processing jobs stored in PostgreSQL are eventually picked up by ARQ.
+
+This provides protection against failures occurring between creating the processing job in PostgreSQL and successfully enqueueing the job in Redis/ARQ.
+
+For example, if the application creates a job with a QUEUED status but crashes before the job is successfully enqueued, the job would remain in PostgreSQL without ever being processed.
+
+The poller periodically checks PostgreSQL for QUEUED jobs and enqueues any jobs that have not yet been picked up by ARQ. This means that if an error or server crash occurs before enqueueing, the job can safely be discovered and processed later.
+
+For errors that occur during processing, ARQ's retry mechanism is responsible for retrying the job. The poller provides an additional recovery mechanism for jobs that are stuck in the database before they reach the worker queue.
+
+I would use an transation outbox pattern if we was needing to execute multiple different events in a queue in the background because instead of having multiple different tables tracking events we would have one which allows for one relaible, generic source of truth for events that need to be processed in the background.
+
 ### Document Integrity
 
 A SHA-256 hash is generated for each uploaded document. This provides a way to verify the document has not changed and can also be used to identify duplicate documents where appropriate.
@@ -116,7 +144,7 @@ Limits are placed on document size, processing attempts, and worker concurrency 
 
 ---
 
-## 7. Retrieval Pipeline
+## 4. Retrieval Pipeline
 
 The retrieval pipeline runs on every query. Order of operations is fixed and cannot be bypassed.
 

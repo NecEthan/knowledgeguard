@@ -32,6 +32,11 @@ Another option would be optimistic locking, but that would add additional comple
 
 We use the `"UniqueConstraint("document_id", "version_number", name="uq_document_version")` contraint so that we prevent duplicate document versions from being added. If DB commits first transaction then the second transaction will throw a constraint error which we handle and retry with an incremented verison number, if the retry fails after the number of attempts then we rollback and throw an error.
 
+# Add duplicate file upload
+
+We store a hashed value for file upload so we check if hashed value in db if so then throw error cannot upload duplicate file.
+A unique database constraint on the hash provides an additional safeguard against two identical files being uploaded concurrently.
+
 # LLM Rate Limiting
 
 

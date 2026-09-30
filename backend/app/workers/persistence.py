@@ -30,7 +30,6 @@ async def persist_results(
                     token_count=estimate_tokens(chunk_content),
                 )
             )
-        await db.flush()
 
         # Update full-text search vector from concatenated chunk text.
         combined_text = " ".join(raw_chunks)
@@ -51,8 +50,8 @@ async def persist_results(
                 version_id=version_id,
             )
         )
+        await db.commit();
 
-        await db.commit()
 
 
 
