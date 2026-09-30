@@ -18,8 +18,9 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "documents",
-        sa.Column("sensitivity", sa.Text(), nullable=False),
+        sa.Column("sensitivity", sa.Text(), nullable=False, server_default="STANDARD"),
     )
+    op.alter_column("documents", "sensitivity", server_default=None)
 
 
 def downgrade() -> None:

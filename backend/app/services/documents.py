@@ -2,6 +2,8 @@ import hashlib
 import uuid
 
 from fastapi import HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 
@@ -80,3 +82,52 @@ def compute_hash(content: bytes) -> str:
 
 def generate_storage_key() -> str:
     return f"documents/{uuid.uuid4()}"
+
+
+async def assert_no_duplicate(db: AsyncSession, content_hash: str) -> None:
+    from app.models.base import DocumentVersion
+
+    result = await db.execute(
+        select(DocumentVersion).where(DocumentVersion.content_hash == content_hash)
+    )
+    if result.scalars().first() is not None:
+        raise HTTPException(status_code=409, detail="Document with identical content already exists")
+
+
+async def create_document_records(
+    db: AsyncSession,
+    title: str,
+    sensitivity: str,
+    content_hash: str,
+    storage_key: str,
+    current_user,
+):
+    from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob
+
+    doc = Document(
+        title=title,
+        owner_id=current_user.id,
+        source_type="upload",
+        sensitivity=sensitivity,
+    )
+    db.add(doc)
+    await db.flush()
+
+    version = DocumentVersion(
+        document_id=doc.id,
+        version_number=1,
+        status="PROCESSING",
+        content_hash=content_hash,
+        storage_key=storage_key,
+        created_by=current_user.id,
+    )
+    db.add(version)
+    await db.flush()
+
+    job = ProcessingJob(document_version_id=version.id, status="QUEUED")
+    db.add(job)
+    db.add(AuditEvent(event_type="DOCUMENT_UPLOADED", user_id=current_user.id, document_id=doc.id))
+    db.add(AuditEvent(event_type="VERSION_CREATED", user_id=current_user.id, document_id=doc.id, version_id=version.id))
+    await db.commit()
+
+    return doc, version, job
