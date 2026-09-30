@@ -187,3 +187,23 @@ async def test_upload_invalid_sensitivity(auth_client):
             data={"title": "Bad", "sensitivity": "TOPSECRET"},
         )
     assert response.status_code == 422
+
+
+async def test_upload_duplicate_content_rejected(auth_client):
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
+    ):
+        first = await auth_client.post(
+            "/documents",
+            files=_txt_file(),
+            data={"title": "Original", "sensitivity": "STANDARD"},
+        )
+        assert first.status_code == 202
+
+        second = await auth_client.post(
+            "/documents",
+            files=_txt_file(),
+            data={"title": "Duplicate", "sensitivity": "STANDARD"},
+        )
+    assert second.status_code == 409
