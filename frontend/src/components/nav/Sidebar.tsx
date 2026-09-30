@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { FileText, Search } from "lucide-react";
+import { FileText, Search, ShieldCheck } from "lucide-react";
 import type { User } from "@/types";
 import { getUser, logout } from "@/lib/api/auth";
 import { applicationRoutes } from "@/utils/applicationRoutes";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
+const baseNavItems = [
   { href: applicationRoutes.documents, label: "Documents", icon: FileText },
   { href: applicationRoutes.search, label: "Search", icon: Search },
 ];
@@ -24,6 +24,14 @@ export function Sidebar() {
       .then(setUser)
       .catch(() => router.replace(applicationRoutes.login));
   }, [router]);
+
+  const navItems =
+    user?.role === "admin"
+      ? [
+          ...baseNavItems,
+          { href: applicationRoutes.audit, label: "Audit Log", icon: ShieldCheck },
+        ]
+      : baseNavItems;
 
   async function handleLogout() {
     await logout();

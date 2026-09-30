@@ -59,6 +59,16 @@ export interface QueryResponse {
   citations: QueryCitation[];
 }
 
+export interface AuditEvent {
+  id: string;
+  event_type: string;
+  user_id: string | null;
+  document_id: string | null;
+  version_id: string | null;
+  metadata_: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export interface ApiError {
   detail: string;
 }

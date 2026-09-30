@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_arq_pool, get_current_user, get_db, sensitivity_filters
-from app.models.base import Document, DocumentVersion, ProcessingJob, User
+from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob, User
 from app.schemas.documents import DocumentResponse, DocumentUploadedResponse
 from app.services import storage
 from app.services.documents import compute_hash, generate_storage_key, read_and_validate
@@ -33,6 +33,14 @@ async def upload_document(
             detail=f"sensitivity must be one of {sorted(_VALID_SENSITIVITIES)}",
         )
     if sensitivity == "SENSITIVE" and current_user.role != "admin":
+        db.add(
+            AuditEvent(
+                event_type="PERMISSION_DENIED",
+                user_id=current_user.id,
+                metadata_={"action": "upload_sensitive_document"},
+            )
+        )
+        await db.commit()
         raise HTTPException(
             status_code=403, detail="Only admins can upload sensitive documents"
         )
@@ -74,6 +82,21 @@ async def upload_document(
             status="QUEUED",
         )
         db.add(job)
+        db.add(
+            AuditEvent(
+                event_type="DOCUMENT_UPLOADED",
+                user_id=current_user.id,
+                document_id=doc.id,
+            )
+        )
+        db.add(
+            AuditEvent(
+                event_type="VERSION_CREATED",
+                user_id=current_user.id,
+                document_id=doc.id,
+                version_id=version.id,
+            )
+        )
         await db.commit()
     except Exception:
         await db.rollback()

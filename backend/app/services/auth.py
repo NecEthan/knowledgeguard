@@ -28,8 +28,6 @@ async def create_session(db: AsyncSession, user_id: uuid.UUID) -> Session:
         expires_at=now + timedelta(hours=settings.session_max_age_hours),
     )
     db.add(session)
-    await db.commit()
-    await db.refresh(session)
     return session
 
 

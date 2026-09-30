@@ -3,6 +3,7 @@ export const applicationRoutes = {
   register: "/register",
   documents: "/documents",
   search: "/search",
+  audit: "/audit",
 } as const;
 
 export type ApplicationRoute =

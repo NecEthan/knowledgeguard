@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db
-from app.models.base import User
+from app.models.base import AuditEvent, User
 from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
 from app.services.auth import (
     create_session,
@@ -30,6 +30,8 @@ async def register(
         role="admin",
     )
     db.add(user)
+    await db.flush()
+    db.add(AuditEvent(event_type="USER_REGISTERED", user_id=user.id))
     await db.commit()
     await db.refresh(user)
     return UserResponse.model_validate(user)
@@ -46,6 +48,8 @@ async def login(
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     session = await create_session(db, user.id)
+    db.add(AuditEvent(event_type="USER_LOGIN", user_id=user.id))
+    await db.commit()
     response.set_cookie(
         key=settings.session_cookie_name,
         value=session.session_token,
