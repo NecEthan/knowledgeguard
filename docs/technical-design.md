@@ -99,196 +99,20 @@ API endpoints that are expensive or can be abused — particularly document uplo
 
 The backend records structured logs and processing metrics such as job duration, retry count, processing status, and failures so that problems can be diagnosed without relying on the frontend.
 
+**Logs**
+
+The application writes structured logs to stdout/stderr. In local development, these logs can be viewed through Docker Desktop. In production, the cloud environment collects these logs through its logging system, allowing them to be searched and monitored.
+
+**Audits**
+
+The system records important business and security events, such as document access, document deletion, version creation, metadata changes, access denied events, and role changes. 
+Audit events are stored in the database and exposed through a restricted admin interface so authorized administrators can review activity and investigate potential unauthorized access to sensitive information.
+If the audit table grows significantly and begins to impact database performance or storage costs, older audit records can be archived to cheaper external storage at a later stage while keeping recent audit data in PostgreSQL.
+
+
 ### Resource Limits
 
 Limits are placed on document size, processing attempts, and worker concurrency to prevent a single request or document from consuming an unreasonable amount of system resources.
-
----
-
-## 4. Data Model
-
-### `users`
-
-```sql
-id            UUID PRIMARY KEY
-email         TEXT UNIQUE NOT NULL
-password_hash TEXT NOT NULL
-role          TEXT NOT NULL  -- admin | user
-created_at    TIMESTAMPTZ NOT NULL
-```
-
-### `documents`
-
-```sql
-id          UUID PRIMARY KEY
-title       TEXT NOT NULL
-owner_id    UUID REFERENCES users(id)
-source_type TEXT NOT NULL   -- upload | google_docs
-sensitivity TEXT NOT NULL   -- STANDARD | SENSITIVE
-created_at  TIMESTAMPTZ NOT NULL
-```
-
-### `document_versions`
-
-```sql
-id             UUID PRIMARY KEY
-document_id    UUID REFERENCES documents(id)
-version_number INTEGER NOT NULL
-status         TEXT NOT NULL  -- PROCESSING | ACTIVE | SUPERSEDED | DELETED | REVIEW_REQUIRED
-content_hash   TEXT NOT NULL  -- SHA-256 of extracted text
-storage_key    TEXT NOT NULL  -- MinIO object key
-created_at     TIMESTAMPTZ NOT NULL
-created_by     UUID REFERENCES users(id)
-
-UNIQUE (document_id, version_number)
-```
-
-Only one version per document can have `status = ACTIVE` at any time. Enforced at the application layer and verified with a partial unique index.
-
-```sql
-CREATE UNIQUE INDEX one_active_version_per_document
-ON document_versions (document_id)
-WHERE status = 'ACTIVE';
-```
-
-### `document_chunks`
-
-```sql
-id                  UUID PRIMARY KEY
-document_version_id UUID REFERENCES document_versions(id)
-chunk_index         INTEGER NOT NULL
-content             TEXT NOT NULL
-embedding           vector(1536)  -- pgvector column
-token_count         INTEGER NOT NULL
-metadata            JSONB
-```
-
-### `processing_jobs`
-
-```sql
-id                  UUID PRIMARY KEY
-document_version_id UUID REFERENCES document_versions(id)
-status              TEXT NOT NULL  -- QUEUED | PROCESSING | COMPLETE | FAILED
-attempts            INTEGER NOT NULL DEFAULT 0
-last_error          TEXT
-created_at          TIMESTAMPTZ NOT NULL
-updated_at          TIMESTAMPTZ NOT NULL
-```
-
-### `audit_events`
-
-```sql
-id         UUID PRIMARY KEY
-event_type TEXT NOT NULL  -- UPLOAD | QUERY | DELETE | VERSION_SUPERSEDED | PERMISSION_DENIED | ...
-user_id    UUID REFERENCES users(id)
-document_id UUID
-version_id  UUID
-metadata   JSONB  -- query text, retrieved version, permission result, etc.
-created_at TIMESTAMPTZ NOT NULL
-```
-
-Audit events are append-only. No updates or deletes.
-
----
-
-## 5. API Design
-
-### Authentication
-
-```
-POST   /auth/register
-POST   /auth/login
-POST   /auth/logout
-GET    /auth/user
-```
-
-On login, the backend creates a server-side session and sends the session ID to the browser as an `HttpOnly`, `Secure`, `SameSite=Strict` cookie. The browser automatically includes the cookie with subsequent requests over HTTPS.
-
-### Documents
-
-```
-POST   /documents                    -- upload new document
-GET    /documents                    -- list documents (filtered by permission)
-GET    /documents/:id                -- get document metadata
-PATCH  /documents/:id                -- update title / metadata
-DELETE /documents/:id                -- soft delete, trigger index removal
-```
-
-### Versions
-
-```
-POST   /documents/:id/versions       -- upload new version
-GET    /documents/:id/versions       -- list all versions
-GET    /documents/:id/versions/:vid  -- get specific version metadata
-```
-
-### Query
-
-```
-POST   /query
-```
-
-Request body:
-
-```json
-{
-  "question": "How many days of annual leave do employees receive?",
-  "mode": "current" // current | historical
-}
-```
-
-Response:
-
-```json
-{
-  "answer": "Employees receive 25 days of annual leave per year.",
-  "citations": [
-    {
-      "document_title": "Annual Leave Policy",
-      "version_number": 3,
-      "status": "ACTIVE",
-      "updated_at": "2026-09-14T17:41:00Z"
-    }
-  ]
-}
-```
-
-### Audit
-
-```
-GET    /audit                        -- paginated audit log (admin only)
-GET    /audit/:document_id           -- audit log for a specific document
-```
-
-### Health
-
-```
-GET    /health                       -- service health check
-```
-
----
-
-## 6. Document Processing Pipeline
-
-Processing runs asynchronously. The API never blocks on it.
-
-### Steps
-
-1. **Receive upload** — API validates file type and size, saves metadata to PostgreSQL with `status = PROCESSING`, stores raw file in MinIO, enqueues a processing job in Redis
-2. **OCR** — if the file is a scanned PDF or image, extracts text from each page
-3. **Text extraction** — PyMuPDF (PDF), python-docx (DOCX), or plain read (TXT/MD) extracts clean text
-4. **Chunking** — text is split into overlapping chunks of ~500 tokens with ~50 token overlap to preserve context at boundaries
-5. **Embedding** — each chunk is sent to the OpenAI Embeddings API (`text-embedding-3-small`) and the returned vector is stored in `document_chunks.embedding`
-6. **Index update** — PostgreSQL full-text search vectors updated via `tsvector`
-7. **Status transition** — version moved to `ACTIVE`, previous version moved to `SUPERSEDED`, audit event emitted
-
-### Idempotency
-
-Each processing job includes a `content_hash` (SHA-256 of extracted text). Before writing chunks, the worker checks whether chunks already exist for this version and hash. Duplicate runs produce no duplicate data.
-
-### Failure Handling
-
-Jobs are retried up to 3 times with exponential backoff. After 3 failures, `status = FAILED` and the error is recorded. Processing failures appear in the Knowledge Health dashboard.
 
 ---
 
@@ -477,17 +301,9 @@ Fixed test cases with known correct answers, sources, versions, and permissions.
 
 ## 14. Key Technical Decisions
 
-### Why soft delete for documents?
-
-Hard delete would immediately orphan chunk and embedding data. Soft delete allows the cleanup process to run completely before the document is considered gone. The audit log also retains a reference to the deleted document's ID.
-
 ### Why keep superseded chunks in the database?
 
 Historical queries need access to superseded content. Deleting chunks on supersede would prevent legitimate historical retrieval. Chunks are excluded from normal queries by the version filter, not by deletion.
-
-### Why run permission filtering before retrieval?
-
-Filtering after retrieval would mean restricted content entered the retrieval pipeline as candidates. Even if excluded from the final answer, this would be a data handling concern. Filtering before retrieval ensures restricted documents are never loaded as context under any circumstances.
 
 ### Why store raw files in MinIO rather than PostgreSQL?
 

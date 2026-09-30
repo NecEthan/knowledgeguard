@@ -22,6 +22,16 @@ Added reaper to recover documents stuck mid-processing. If a worker crashes hard
 The reaper runs every 30s and resets any PROCESSING job where updated_at hasn't changed for 10+ minutes back to QUEUED so the
 poller re-dispatches it. Jobs that exceed max attempts are marked FAILED and their MinIO object is deleted.
 
-# Updating DOC Metadata
+# Multiple users update DOC Metadata at same time
 
-I have decided to use optimistic locking when saving metadata to the DB in case multiple users try to update the same data at the same time, which could result in incorrect data being saved. Optimistic locking is a good fit because it is rare that this scenario will happen, allowing for higher system throughput and lower latency. Whereas something like pessimistic locking would slow down transactions due to locking each row when we modify metadata—which would only save time if most transactions modified the same data because we would not have to keep rolling back or retrying, but this is not the case.
+I will update metadata using partial updates, changing only the fields the user modified rather than replacing the entire metadata object on every request. If we updated all fields on each request, a concurrent request containing stale values could overwrite newer data. With partial updates, stale unchanged fields are never written back, so concurrent changes to different fields are preserved. PostgreSQL coordinates concurrent updates to the same row.
+
+Another option would be optimistic locking, but that would add additional complexity for what we want to acheive. Since we are only updating the fields that actually changed, optimistic locking is not necessary unless we need to detect and prevent concurrent updates to the same field. In this case, updating data does not rely on previous data so it is not strictly needed.
+
+# Multiple users add Doc version at same time
+
+We use the `"UniqueConstraint("document_id", "version_number", name="uq_document_version")` contraint so that we prevent duplicate document versions from being added. If DB commits first transaction then the second transaction will throw a constraint error which we handle and retry with an incremented verison number, if the retry fails after the number of attempts then we rollback and throw an error.
+
+# LLM Rate Limiting
+
+
