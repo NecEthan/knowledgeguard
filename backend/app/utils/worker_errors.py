@@ -9,7 +9,7 @@ import openai
 from arq import Retry
 
 from app.workers.failure import persist_failure, reset_job_for_retry
-from backend.app.workers.constants import RETRY_DELAYS
+from app.workers.constants import RETRY_DELAYS
 
 # Errors that will never succeed on retry — fail immediately.
 _NON_RETRYABLE = (
