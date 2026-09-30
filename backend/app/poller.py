@@ -1,6 +1,6 @@
 import asyncio
-import logging
 
+import structlog
 from arq.connections import ArqRedis
 from sqlalchemy import select
 
@@ -8,7 +8,7 @@ from app.database import AsyncSessionLocal
 from app.models.base import ProcessingJob
 from app.reaper import reap_stale_processing_jobs
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _POLL_INTERVAL = 30
 
@@ -21,6 +21,8 @@ async def _dispatch_stale_jobs(pool: ArqRedis) -> None:
         jobs = result.scalars().all()
         if not jobs:
             return
+        queued_count = len(jobs)
+        logger.info("queue_depth", queued_count=queued_count)
         for job in jobs:
             # If error occurs after job is enqueued, the job status will not be set to DISPATCHED
             # resulting in a job being enqueued twice
@@ -33,7 +35,7 @@ async def _dispatch_stale_jobs(pool: ArqRedis) -> None:
             )
             job.status = "DISPATCHED"
         await db.commit()
-        logger.info("dispatched %d queued job(s) to Redis", len(jobs))
+        logger.info("dispatched", queued_count=queued_count)
 
 
 async def run_poller(pool: ArqRedis) -> None:
@@ -43,4 +45,4 @@ async def run_poller(pool: ArqRedis) -> None:
             await reap_stale_processing_jobs()
             await _dispatch_stale_jobs(pool)
         except Exception:
-            logger.exception("poller error")
+            logger.exception("poller_error")

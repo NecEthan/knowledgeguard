@@ -33,5 +33,10 @@ class Settings(BaseSettings):
 
     max_upload_size_mb: int = 50
 
+    # LLM pricing for cost estimation per query (USD per 1M tokens).
+    # Defaults match gpt-4o-mini; override via environment variables.
+    llm_input_cost_per_1m_tokens: float = 0.150
+    llm_output_cost_per_1m_tokens: float = 0.600
+
 
 settings = Settings()

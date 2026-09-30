@@ -12,16 +12,21 @@ Pipeline:
   9. Audit event (QUERY_EXECUTED)
 """
 
-import logging
+import time
 
 import openai
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.base import AuditEvent, User
 from app.schemas.query import QueryRequest, QueryResponse
-from app.services.context_builder import build_citations, build_context_text, fetch_context_chunks
+from app.services.context_builder import (
+    build_citations,
+    build_context_text,
+    fetch_context_chunks,
+)
 from app.services.embedder import generate_embeddings
 from app.services.fts_search import fts_search
 from app.services.llm import generate_answer
@@ -29,7 +34,7 @@ from app.services.permissions import build_permitted_doc_ids
 from app.services.rrf import rrf_combine
 from app.services.vector_search import vector_search
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["query"])
 
 _VECTOR_LIMIT = 20
@@ -51,7 +56,7 @@ async def run_query(
     try:
         embeddings = await generate_embeddings([question])
     except openai.OpenAIError as exc:
-        logger.warning("OpenAI embedding error: %s", exc)
+        logger.warning("embedding_error", error=str(exc))
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
     query_embedding = embeddings[0]
@@ -59,15 +64,20 @@ async def run_query(
     # 2. Permission subquery — enforced at DB level
     permitted_doc_ids = build_permitted_doc_ids(current_user)
 
-    # 3. Vector search
+    # 3 + 4. Vector search + full-text search (timed together as hybrid retrieval)
+    search_start = time.monotonic()
     vector_chunk_ranks = await vector_search(
         db, query_embedding, permitted_doc_ids, allowed_statuses, limit=_VECTOR_LIMIT
     )
-
-    # 4. Full-text search
     fts_chunk_ranks = await fts_search(
-        db, question, permitted_doc_ids, allowed_statuses, version_limit=_FTS_VERSION_LIMIT
+        db,
+        question,
+        permitted_doc_ids,
+        allowed_statuses,
+        version_limit=_FTS_VERSION_LIMIT,
     )
+    search_ms = round((time.monotonic() - search_start) * 1000, 1)
+    logger.info("search_latency", duration_ms=search_ms)
 
     # 5. Reciprocal Rank Fusion
     combined = rrf_combine(vector_chunk_ranks, fts_chunk_ranks)

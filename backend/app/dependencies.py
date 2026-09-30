@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 
+import structlog
 from arq.connections import ArqRedis
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import ColumnElement
@@ -30,7 +31,11 @@ async def get_current_user(
     session = await get_valid_session(db, token)
     if session is None:
         raise HTTPException(status_code=401, detail="Session invalid or expired")
-    return session.user
+    user = session.user
+    # Bind user_id to the structlog context so it appears in all subsequent
+    # log entries for this request.
+    structlog.contextvars.bind_contextvars(user_id=str(user.id))
+    return user
 
 
 def sensitivity_filters(current_user: User) -> list[ColumnElement[bool]]:

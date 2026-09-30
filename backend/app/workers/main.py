@@ -1,10 +1,10 @@
 """ARQ worker — document processing jobs."""
 
 import asyncio
-import logging
+import time
 import uuid
 
-import openai
+import structlog
 from arq.connections import RedisSettings
 from sqlalchemy import select, update
 
@@ -21,7 +21,7 @@ from app.workers.activation import DocumentDeletedError
 from app.workers.constants import MAX_TRIES
 from app.workers.persistence import persist_results
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def process_document(ctx: dict, document_version_id: str) -> None:
@@ -40,6 +40,15 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
     """
     version_id = uuid.UUID(document_version_id)
     job_try: int = ctx.get("job_try", 1)
+    start = time.monotonic()
+
+    # Bind job context so all log entries within this run share version_id + attempt.
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(
+        service="worker",
+        version_id=str(version_id),
+        attempt=job_try,
+    )
 
     # ── Phase 1: mark job PROCESSING, load version ────────────────────────────
     async with AsyncSessionLocal() as db:
@@ -54,21 +63,15 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
         version = version_result.scalar_one_or_none()
         if version is None:
             # Document was deleted before the worker started — nothing to do.
-            logger.info(
-                "Version %s not found — document was deleted, skipping", version_id
-            )
+            logger.info("job_skipped", reason="version_not_found")
             return
         document_id = version.document_id
         storage_key = version.storage_key
         await db.commit()
 
-    logger.info(
-        "Processing document version %s (attempt %d/%d)",
-        version_id,
-        job_try,
-        MAX_TRIES,
-    )
+    logger.info("job_start", max_tries=MAX_TRIES)
 
+    raw_chunks: list[str] = []
     try:
         # ── Phase 2: download + extract ───────────────────────────────────────
         loop = asyncio.get_running_loop()
@@ -88,11 +91,7 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
 
     except DocumentDeletedError:
         # Document was deleted mid-processing — abort cleanly without retry.
-        logger.info(
-            "Document %s deleted mid-processing — aborting version %s",
-            document_id,
-            version_id,
-        )
+        logger.info("job_aborted", reason="document_deleted")
         async with AsyncSessionLocal() as cleanup_db:
             await cleanup_db.execute(
                 update(ProcessingJob)
@@ -104,6 +103,13 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
         return
 
     except Exception as exc:
+        duration_ms = round((time.monotonic() - start) * 1000, 1)
+        logger.warning(
+            "job_failure",
+            error_type=type(exc).__name__,
+            duration_ms=duration_ms,
+            max_tries=MAX_TRIES,
+        )
         await handle_process_job_error(
             exc,
             version_id,
@@ -112,8 +118,11 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
             MAX_TRIES,
         )
 
+    duration_ms = round((time.monotonic() - start) * 1000, 1)
     logger.info(
-        "Document version %s processed: %d chunk(s)", version_id, len(raw_chunks)
+        "job_complete",
+        chunk_count=len(raw_chunks),
+        duration_ms=duration_ms,
     )
 
 

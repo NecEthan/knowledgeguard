@@ -7,8 +7,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.logging_config import configure_logging
+from app.middleware import RequestLoggingMiddleware
 from app.poller import run_poller
 from app.routers import audit, auth, documents, health, query
+
+# Configure structured logging before the app object is created so that
+# any module-level loggers (e.g. in routers) pick up the configuration.
+configure_logging(settings.app_env)
 
 
 @asynccontextmanager
@@ -29,6 +35,9 @@ app = FastAPI(
     redoc_url="/redoc" if settings.app_env == "development" else None,
 )
 
+# RequestLoggingMiddleware must be added before CORSMiddleware so that
+# request_id is bound before any early-exit CORS responses are logged.
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),

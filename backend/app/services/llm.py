@@ -1,7 +1,8 @@
 import json
-import logging
+import time
 
 import openai
+import structlog
 from fastapi import HTTPException
 from openai import AsyncOpenAI
 from pydantic import ValidationError
@@ -9,7 +10,7 @@ from pydantic import ValidationError
 from app.config import settings
 from app.schemas.query import LLMAnswer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _SYSTEM_PROMPT = (
     "You are a knowledge assistant. Answer questions using ONLY the provided context.\n"
@@ -24,9 +25,18 @@ _SYSTEM_PROMPT = (
 )
 
 
+def _estimate_cost(prompt_tokens: int, completion_tokens: int) -> float:
+    """Estimate OpenAI cost in USD using configured per-token pricing."""
+    return (
+        prompt_tokens * settings.llm_input_cost_per_1m_tokens / 1_000_000
+        + completion_tokens * settings.llm_output_cost_per_1m_tokens / 1_000_000
+    )
+
+
 async def generate_answer(question: str, context_text: str) -> LLMAnswer:
     """Call OpenAI chat completion and parse structured response."""
     user_prompt = f"Context:\n{context_text}\n\nQuestion: {question}"
+    start = time.monotonic()
     try:
         oai_client = AsyncOpenAI(api_key=settings.openai_api_key)
         completion = await oai_client.chat.completions.create(
@@ -39,13 +49,40 @@ async def generate_answer(question: str, context_text: str) -> LLMAnswer:
             temperature=0,
         )
     except openai.OpenAIError as exc:
-        logger.warning("OpenAI chat completion error: %s", exc)
+        logger.warning("openai_error", error=str(exc))
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    duration_ms = round((time.monotonic() - start) * 1000, 1)
+    _log_llm_call(completion, duration_ms)
 
     raw = (completion.choices[0].message.content or "{}").strip()
     try:
         llm_data = json.loads(raw)
         return LLMAnswer.model_validate(llm_data)
     except (json.JSONDecodeError, ValidationError):
-        logger.warning("LLM returned invalid JSON: %.200s", raw)
+        logger.warning("llm_invalid_json", preview=raw[:200])
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+
+def _log_llm_call(completion, duration_ms: float) -> None:
+    """Log LLM latency, token usage, and estimated cost.  Never logs prompts or keys."""
+    try:
+        usage = completion.usage
+        prompt_tokens = int(usage.prompt_tokens)
+        completion_tokens = int(usage.completion_tokens)
+        total_tokens = prompt_tokens + completion_tokens
+        estimated_cost_usd = round(
+            _estimate_cost(prompt_tokens, completion_tokens), 8
+        )
+        logger.info(
+            "llm_call",
+            model=settings.chat_model,
+            duration_ms=duration_ms,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            estimated_cost_usd=estimated_cost_usd,
+        )
+    except (TypeError, ValueError, AttributeError):
+        # usage data unavailable (e.g. in tests with MagicMock completions)
+        logger.info("llm_call", model=settings.chat_model, duration_ms=duration_ms)
