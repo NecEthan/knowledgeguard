@@ -60,5 +60,4 @@ help:
 	@echo "Prod  (ports 8002/3002/5436):  make prod | make prod-build | make prod-down"
 	@echo ""
 	@echo "First time: copy OPENAI_API_KEY into .env.dev and .env.prod"
-	@echo "Prod only:  set a real SECRET_KEY in .env.prod (openssl rand -hex 32)"
 	@echo ""

@@ -69,7 +69,6 @@ services:
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     environment:
       APP_ENV: production
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required — run: openssl rand -hex 32}
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/knowledgeguard_prod
       REDIS_URL: redis://redis:6379/0
       STORAGE_ENDPOINT: http://minio:9000
@@ -94,7 +93,6 @@ services:
     command: uv run arq app.workers.main.WorkerSettings
     environment:
       APP_ENV: production
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/knowledgeguard_prod
       REDIS_URL: redis://redis:6379/0
       STORAGE_ENDPOINT: http://minio:9000

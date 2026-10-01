@@ -69,7 +69,6 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       APP_ENV: ${APP_ENV:-development}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-not-for-production}
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/${POSTGRES_DB:-knowledgeguard}
       REDIS_URL: redis://redis:6379/0
       STORAGE_ENDPOINT: http://minio:9000
@@ -99,7 +98,6 @@ services:
     command: uv run arq app.workers.main.WorkerSettings
     environment:
       APP_ENV: ${APP_ENV:-development}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-not-for-production}
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/${POSTGRES_DB:-knowledgeguard}
       REDIS_URL: redis://redis:6379/0
       STORAGE_ENDPOINT: http://minio:9000
