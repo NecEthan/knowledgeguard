@@ -187,3 +187,204 @@ async def test_get_version_wrong_document(auth_client, db, test_user):
     other_doc_id = uuid.uuid4()
     response = await auth_client.get(f"/documents/{other_doc_id}/versions/{v1.id}")
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Activate endpoint helpers
+# ---------------------------------------------------------------------------
+
+
+async def _upload_and_setup_versions(auth_client, db):
+    """Upload two versions and manually set v1=ACTIVE, v2=SUPERSEDED.
+
+    Returns (doc_id_str, v1_id, v2_id).
+    """
+    doc_id = await _upload_doc(auth_client)
+
+    with (
+        patch("app.services.storage.upload_bytes"),
+        patch("app.services.storage.delete_object"),
+    ):
+        r2 = await auth_client.post(
+            f"/documents/{doc_id}/versions",
+            files=_txt_file("v2.txt"),
+        )
+    assert r2.status_code == 202
+    v2_id = uuid.UUID(r2.json()["id"])
+
+    # Fetch both versions.
+    result = await db.execute(
+        select(DocumentVersion)
+        .where(DocumentVersion.document_id == uuid.UUID(doc_id))
+        .order_by(DocumentVersion.version_number)
+    )
+    versions = result.scalars().all()
+    v1, v2 = versions[0], versions[1]
+
+    # Simulate post-processing state: v1 ACTIVE, v2 SUPERSEDED.
+    from sqlalchemy import update as sa_update
+
+    await db.execute(
+        sa_update(DocumentVersion)
+        .where(DocumentVersion.id == v1.id)
+        .values(status="ACTIVE")
+    )
+    await db.execute(
+        sa_update(DocumentVersion)
+        .where(DocumentVersion.id == v2.id)
+        .values(status="SUPERSEDED")
+    )
+    await db.commit()
+
+    return doc_id, v1.id, v2_id
+
+
+# ---------------------------------------------------------------------------
+# Activate endpoint tests
+# ---------------------------------------------------------------------------
+
+
+async def test_activate_superseded_version(auth_client, db, test_user):
+    doc_id, v1_id, v2_id = await _upload_and_setup_versions(auth_client, db)
+
+    # v2 is SUPERSEDED — activate it.
+    response = await auth_client.patch(
+        f"/documents/{doc_id}/versions/{v2_id}/activate"
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ACTIVE"
+    assert data["id"] == str(v2_id)
+
+
+async def test_previous_active_becomes_superseded(auth_client, db, test_user):
+    doc_id, v1_id, v2_id = await _upload_and_setup_versions(auth_client, db)
+
+    await auth_client.patch(f"/documents/{doc_id}/versions/{v2_id}/activate")
+
+    result = await db.execute(
+        select(DocumentVersion).where(DocumentVersion.id == v1_id)
+    )
+    await db.refresh(result.scalar_one())
+    result = await db.execute(
+        select(DocumentVersion).where(DocumentVersion.id == v1_id)
+    )
+    v1 = result.scalar_one()
+    assert v1.status == "SUPERSEDED"
+
+
+async def test_activate_emits_audit_events(auth_client, db, test_user):
+    doc_id, v1_id, v2_id = await _upload_and_setup_versions(auth_client, db)
+
+    await auth_client.patch(f"/documents/{doc_id}/versions/{v2_id}/activate")
+
+    activated = await db.execute(
+        select(AuditEvent)
+        .where(AuditEvent.event_type == "VERSION_ACTIVATED")
+        .where(AuditEvent.document_id == uuid.UUID(doc_id))
+        .where(AuditEvent.version_id == v2_id)
+    )
+    assert activated.scalar_one_or_none() is not None
+
+    superseded = await db.execute(
+        select(AuditEvent)
+        .where(AuditEvent.event_type == "VERSION_SUPERSEDED")
+        .where(AuditEvent.document_id == uuid.UUID(doc_id))
+        .where(AuditEvent.version_id == v1_id)
+    )
+    assert superseded.scalar_one_or_none() is not None
+
+
+async def test_activate_requires_auth(client):
+    response = await client.patch(
+        f"/documents/{uuid.uuid4()}/versions/{uuid.uuid4()}/activate"
+    )
+    assert response.status_code == 401
+
+
+async def test_activate_403_wrong_owner(auth_client, admin_client, db, test_user, admin_user):
+    """Admin uploads doc; regular user cannot activate its versions."""
+    with patch("app.services.storage.upload_bytes"):
+        r = await admin_client.post(
+            "/documents",
+            files={"file": ("doc.txt", b"admin doc", "text/plain")},
+            data={"title": "Admin Doc", "sensitivity": "STANDARD"},
+        )
+    assert r.status_code == 202
+    doc_id = r.json()["id"]
+
+    result = await db.execute(
+        select(DocumentVersion).where(DocumentVersion.document_id == uuid.UUID(doc_id))
+    )
+    v1 = result.scalar_one()
+
+    response = await auth_client.patch(
+        f"/documents/{doc_id}/versions/{v1.id}/activate"
+    )
+    assert response.status_code == 403
+
+
+async def test_activate_404_document_not_found(auth_client, test_user):
+    response = await auth_client.patch(
+        f"/documents/{uuid.uuid4()}/versions/{uuid.uuid4()}/activate"
+    )
+    assert response.status_code == 404
+
+
+async def test_activate_404_version_not_found(auth_client, db, test_user):
+    doc_id = await _upload_doc(auth_client)
+    response = await auth_client.patch(
+        f"/documents/{doc_id}/versions/{uuid.uuid4()}/activate"
+    )
+    assert response.status_code == 404
+
+
+async def _make_version_with_status(db, doc_id: str, status: str) -> uuid.UUID:
+    """Insert a DocumentVersion with arbitrary status directly in DB."""
+    from sqlalchemy import update as sa_update
+
+    result = await db.execute(
+        select(DocumentVersion)
+        .where(DocumentVersion.document_id == uuid.UUID(doc_id))
+        .order_by(DocumentVersion.version_number.desc())
+    )
+    latest = result.scalar_one()
+
+    version = DocumentVersion(
+        document_id=uuid.UUID(doc_id),
+        version_number=latest.version_number + 1,
+        status=status,
+        content_hash="abc123",
+        storage_key="test/key",
+    )
+    db.add(version)
+    await db.commit()
+    await db.refresh(version)
+    return version.id
+
+
+async def test_activate_422_processing_status(auth_client, db, test_user):
+    doc_id = await _upload_doc(auth_client)
+    ver_id = await _make_version_with_status(db, doc_id, "PROCESSING")
+    response = await auth_client.patch(
+        f"/documents/{doc_id}/versions/{ver_id}/activate"
+    )
+    assert response.status_code == 422
+
+
+async def test_activate_422_failed_status(auth_client, db, test_user):
+    doc_id = await _upload_doc(auth_client)
+    ver_id = await _make_version_with_status(db, doc_id, "FAILED")
+    response = await auth_client.patch(
+        f"/documents/{doc_id}/versions/{ver_id}/activate"
+    )
+    assert response.status_code == 422
+
+
+async def test_activate_422_deleted_status(auth_client, db, test_user):
+    doc_id = await _upload_doc(auth_client)
+    ver_id = await _make_version_with_status(db, doc_id, "DELETED")
+    response = await auth_client.patch(
+        f"/documents/{doc_id}/versions/{ver_id}/activate"
+    )
+    assert response.status_code == 422

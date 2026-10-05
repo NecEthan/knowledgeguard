@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import type { DocumentVersion } from "@/types";
 import {
+  activateDocumentVersion,
   listDocumentVersions,
   uploadDocumentVersion,
 } from "@/lib/api/documents";
@@ -33,6 +34,7 @@ export default function VersionHistoryPage() {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [activating, setActivating] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadVersions = useCallback(() => {
@@ -44,6 +46,19 @@ export default function VersionHistoryPage() {
   useEffect(() => {
     loadVersions();
   }, [loadVersions]);
+
+  async function handleActivate(versionId: string) {
+    setActivating(versionId);
+    setError(null);
+    try {
+      await activateDocumentVersion(documentId, versionId);
+      loadVersions();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Activation failed");
+    } finally {
+      setActivating(null);
+    }
+  }
 
   async function handleUploadVersion(e: React.FormEvent) {
     e.preventDefault();
@@ -128,14 +143,26 @@ export default function VersionHistoryPage() {
                       {new Date(v.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <span
-                    data-testid="version-status"
-                    className={`text-xs font-semibold rounded px-2 py-1 ${
-                      STATUS_STYLES[v.status] ?? "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {v.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {!["ACTIVE", "PROCESSING", "DELETED", "FAILED"].includes(v.status) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={activating === v.id}
+                        onClick={() => handleActivate(v.id)}
+                      >
+                        {activating === v.id ? "Activating…" : "Set as active"}
+                      </Button>
+                    )}
+                    <span
+                      data-testid="version-status"
+                      className={`text-xs font-semibold rounded px-2 py-1 ${
+                        STATUS_STYLES[v.status] ?? "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {v.status}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

@@ -102,6 +102,16 @@ export async function getDocumentVersion(
   return httpClient<DocumentVersion>(`/documents/${documentId}/versions/${versionId}`);
 }
 
+export async function activateDocumentVersion(
+  documentId: string,
+  versionId: string,
+): Promise<DocumentVersion> {
+  return httpClient<DocumentVersion>(
+    `/documents/${documentId}/versions/${versionId}/activate`,
+    { method: "PATCH" },
+  );
+}
+
 export async function deleteDocument(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/documents/${id}`, {
     method: "DELETE",

@@ -10,6 +10,7 @@ from app.dependencies import get_arq_pool, get_current_user, get_db, sensitivity
 from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob, User
 from app.schemas.documents import DocumentVersionResponse, VersionUploadedResponse
 from app.services import storage
+from app.services.activation import activate_version
 from app.services.documents import compute_hash, generate_storage_key, read_and_validate
 from app.utils.enqueue import enqueue_processing_job
 
@@ -148,4 +149,66 @@ async def get_document_version(
     if version is None:
         raise HTTPException(status_code=404, detail="Version not found")
 
+    return DocumentVersionResponse.model_validate(version)
+
+
+_ACTIVATABLE_STATUSES = {"ACTIVE", "SUPERSEDED"}
+
+
+@router.patch(
+    "/{document_id}/versions/{version_id}/activate",
+    response_model=DocumentVersionResponse,
+)
+async def activate_document_version(
+    document_id: uuid.UUID,
+    version_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentVersionResponse:
+    doc_result = await db.execute(
+        select(Document).where(Document.id == document_id)
+    )
+    doc = doc_result.scalar_one_or_none()
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    ver_result = await db.execute(
+        select(DocumentVersion)
+        .where(DocumentVersion.id == version_id)
+        .where(DocumentVersion.document_id == document_id)
+    )
+    version = ver_result.scalar_one_or_none()
+    if version is None:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    if version.status not in _ACTIVATABLE_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Cannot activate a version with status {version.status}",
+        )
+
+    if version.status == "ACTIVE":
+        return DocumentVersionResponse.model_validate(version)
+
+    await activate_version(db, version_id, document_id)
+
+    db.add(
+        AuditEvent(
+            event_type="VERSION_ACTIVATED",
+            user_id=current_user.id,
+            document_id=document_id,
+            version_id=version_id,
+        )
+    )
+    await db.commit()
+
+    ver_result = await db.execute(
+        select(DocumentVersion)
+        .where(DocumentVersion.id == version_id)
+        .where(DocumentVersion.document_id == document_id)
+    )
+    version = ver_result.scalar_one()
     return DocumentVersionResponse.model_validate(version)

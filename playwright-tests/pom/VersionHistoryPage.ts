@@ -28,4 +28,21 @@ export class VersionHistoryPage {
       .getByRole("button", { name: /back to documents/i })
       .click();
   }
+
+  async waitForVersionStatus(versionNumber: number, status: string) {
+    await this.page
+      .getByTestId("version-row")
+      .filter({ hasText: `v${versionNumber}` })
+      .getByTestId("version-status")
+      .filter({ hasText: status })
+      .waitFor({ state: "visible" });
+  }
+
+  async clickSetAsActive(versionNumber: number) {
+    await this.page
+      .getByTestId("version-row")
+      .filter({ hasText: `v${versionNumber}` })
+      .getByRole("button", { name: /set as active/i })
+      .click();
+  }
 }

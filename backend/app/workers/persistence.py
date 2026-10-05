@@ -7,7 +7,7 @@ from sqlalchemy import delete, func, update
 from app.database import AsyncSessionLocal
 from app.models.base import AuditEvent, DocumentChunk, DocumentVersion
 from app.services.chunker import estimate_tokens
-from app.workers.activation import activate_version
+from app.services.activation import activate_version
 
 
 async def persist_results(

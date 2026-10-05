@@ -55,4 +55,30 @@ test.describe("Version History", () => {
     await versionHistoryPage.goBackToDocuments();
     await expect(page).toHaveURL(/\/documents$/);
   });
+
+  test("can set a previous version as active", async ({ page }) => {
+    const documentsPage = new DocumentsPage(page);
+    const versionHistoryPage = new VersionHistoryPage(page);
+    const docTitle = `Activate test doc ${Date.now()}`;
+
+    // Upload v1 and open version history.
+    await documentsPage.goto();
+    await documentsPage.uploadDocument(docTitle, "v1.txt", "Version one content.");
+    await documentsPage.openVersionHistory(docTitle);
+    await versionHistoryPage.assertLoaded();
+
+    // Upload v2.
+    await versionHistoryPage.uploadNewVersion("v2.txt", "Version two content.");
+    await expect(versionHistoryPage.versionRows()).toHaveCount(2);
+
+    // Wait for v2 to become ACTIVE (worker processes it).
+    await versionHistoryPage.waitForVersionStatus(2, "ACTIVE");
+
+    // Activate v1.
+    await versionHistoryPage.clickSetAsActive(1);
+
+    // v1 should now be ACTIVE, v2 should be SUPERSEDED.
+    await versionHistoryPage.waitForVersionStatus(1, "ACTIVE");
+    await versionHistoryPage.waitForVersionStatus(2, "SUPERSEDED");
+  });
 });
