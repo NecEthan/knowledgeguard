@@ -11,6 +11,7 @@ from app.logging_config import configure_logging
 from app.middleware import RequestLoggingMiddleware
 from app.poller import run_poller
 from app.routers import audit, auth, documents, health, query
+from app.services import storage
 
 # Configure structured logging before the app object is created so that
 # any module-level loggers (e.g. in routers) pick up the configuration.
@@ -19,6 +20,8 @@ configure_logging(settings.app_env)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, storage.configure_bucket_lifecycle)
     pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     app.state.arq_pool = pool
     task = asyncio.create_task(run_poller(pool))

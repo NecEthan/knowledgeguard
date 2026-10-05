@@ -63,6 +63,16 @@ All data received from the frontend is validated by the backend. The backend can
 
 The backend independently validates uploaded files, including file type and size, before accepting them for processing. Files are assigned a unique identifier and stored separately from the application database.
 
+### Orphaned Upload Cleanup
+
+File upload and database commit are two separate operations. If the process crashes after uploading to MinIO but before the database transaction commits, the object in MinIO has no corresponding `DocumentVersion` record. These orphaned objects would accumulate indefinitely without a cleanup mechanism.
+
+To handle this, every uploaded object is immediately tagged `kg-orphan=true` in MinIO after the upload completes. A MinIO lifecycle rule (configured at application startup) auto-expires any object carrying this tag after 24 hours.
+
+Once the database transaction commits successfully, the tag is removed. The window between upload and tag removal is typically milliseconds. If removal fails, the processing job will eventually fail when the worker tries to download a deleted object; the reaper then marks the job `FAILED` and the user can re-upload.
+
+Both the tagging and tag-removal calls are best-effort — failures are logged but do not abort the request. This is intentional: the lifecycle rule is a safety net, not a hard dependency.
+
 ### Process Uploads
 
 First we set job status to `processing` commit those changes to db to keep job status up to date. The second transation will persist those results (add documentChunks, update vector search with chunks for keyword search) and activate version which sets active version to superseded, sets document we are processing to active and then sets job status to complete.
@@ -266,6 +276,7 @@ Events captured:
 | `DOCUMENT_UPLOADED`  | Upload                  |
 | `VERSION_CREATED`    | New version upload      |
 | `VERSION_SUPERSEDED` | Version transition      |
+| `VERSION_ACTIVATED`  | Manual version activate |
 | `DOCUMENT_DELETED`   | Deletion                |
 | `QUERY_EXECUTED`     | Any query               |
 | `PERMISSION_DENIED`  | Failed permission check |

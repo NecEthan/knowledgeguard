@@ -65,6 +65,7 @@ async def upload_document(
     storage_key = generate_storage_key()
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, storage.upload_bytes, storage_key, content, content_type)
+    await loop.run_in_executor(None, storage.tag_as_orphan, storage_key)
 
     try:
         doc, version, job = await create_document_records(
@@ -75,6 +76,7 @@ async def upload_document(
         await loop.run_in_executor(None, storage.delete_object, storage_key)
         raise
 
+    await loop.run_in_executor(None, storage.confirm_object, storage_key)
     await enqueue_processing_job(arq_pool, db, job, version.id)
 
     return DocumentUploadedResponse(id=doc.id, status="accepted")
