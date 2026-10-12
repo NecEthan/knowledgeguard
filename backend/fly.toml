@@ -1,0 +1,24 @@
+app = "knowledgeguard-api"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  release_command = "uv run alembic upgrade head"
+
+[processes]
+  api = "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+  worker = "uv run arq app.workers.main.WorkerSettings"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["api"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
