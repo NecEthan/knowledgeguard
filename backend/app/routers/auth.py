@@ -50,12 +50,13 @@ async def login(
     session = await create_session(db, user.id)
     db.add(AuditEvent(event_type="USER_LOGIN", user_id=user.id))
     await db.commit()
+    is_production = settings.app_env != "development"
     response.set_cookie(
         key=settings.session_cookie_name,
         value=session.session_token,
         httponly=True,
-        secure=settings.app_env != "development",
-        samesite="strict",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
         max_age=settings.session_max_age_hours * 3600, # 24 hours
         path="/",
     )
