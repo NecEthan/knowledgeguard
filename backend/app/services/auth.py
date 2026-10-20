@@ -1,6 +1,7 @@
 import asyncio
 import secrets
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -11,18 +12,21 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.models.base import Session
 
+_bcrypt_executor = ThreadPoolExecutor(max_workers=settings.bcrypt_executor_workers)
+
 
 async def hash_password(password: str) -> str:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
-        None, lambda: bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        _bcrypt_executor,
+        lambda: bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
     )
 
 
 async def verify_password(plain: str, hashed: str) -> bool:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
-        None, lambda: bcrypt.checkpw(plain.encode(), hashed.encode())
+        _bcrypt_executor, lambda: bcrypt.checkpw(plain.encode(), hashed.encode())
     )
 
 

@@ -37,5 +37,8 @@ class Settings(BaseSettings):
     llm_input_cost_per_1m_tokens: float = 0.150
     llm_output_cost_per_1m_tokens: float = 0.600
 
+    bcrypt_executor_workers: int = 50
+    login_rate_limit: str = "5/minute"
+
 
 settings = Settings()
