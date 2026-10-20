@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { login, register } from "@/lib/api/auth";
+import { login } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 import { applicationRoutes } from "@/utils/applicationRoutes";
 import { Button } from "@/components/ui/button";
@@ -18,33 +17,20 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-type Mode = "login" | "register";
-
-interface AuthFormProps {
-  mode: Mode;
-}
-
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const isLogin = mode === "login";
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      if (isLogin) {
-        await login(email, password);
-        router.push(applicationRoutes.documents);
-      } else {
-        await register(email, password);
-        router.push(applicationRoutes.login);
-      }
+      await login(email, password);
+      router.push(applicationRoutes.documents);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -60,7 +46,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     <main className="flex min-h-screen items-center justify-center">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>{isLogin ? "Sign in" : "Create account"}</CardTitle>
+          <CardTitle>Sign in</CardTitle>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
@@ -88,49 +74,18 @@ export function AuthForm({ mode }: AuthFormProps) {
               <Input
                 id="password"
                 type="password"
-                autoComplete={isLogin ? "current-password" : "new-password"}
+                autoComplete="current-password"
                 required
-                minLength={isLogin ? undefined : 8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col gap-3">
+          <CardFooter>
             <Button type="submit" disabled={loading} className="w-full">
-              {loading
-                ? isLogin
-                  ? "Signing in…"
-                  : "Creating account…"
-                : isLogin
-                  ? "Sign in"
-                  : "Create account"}
+              {loading ? "Signing in…" : "Sign in"}
             </Button>
-
-            <span className="text-center text-sm text-muted-foreground">
-              {isLogin ? (
-                <>
-                  No account?{" "}
-                  <Link
-                    href={applicationRoutes.register}
-                    className="font-medium text-foreground underline"
-                  >
-                    Create one
-                  </Link>
-                </>
-              ) : (
-                <>
-                  Already have an account?{" "}
-                  <Link
-                    href={applicationRoutes.login}
-                    className="font-medium text-foreground underline"
-                  >
-                    Sign in
-                  </Link>
-                </>
-              )}
-            </span>
           </CardFooter>
         </form>
       </Card>

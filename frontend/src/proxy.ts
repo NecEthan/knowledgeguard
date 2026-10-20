@@ -4,13 +4,11 @@ import { applicationRoutes } from "@/utils/applicationRoutes";
 
 const PUBLIC_PATHS: string[] = [
   applicationRoutes.login,
-  applicationRoutes.register,
 ];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const cookieName = process.env.SESSION_COOKIE_NAME ?? "kg_session";
-  const hasSession = request.cookies.has(cookieName);
+  const hasSession = request.cookies.has("kg_ui_auth");
 
   if (!hasSession && !PUBLIC_PATHS.includes(pathname)) {
     return NextResponse.redirect(new URL(applicationRoutes.login, request.url));
