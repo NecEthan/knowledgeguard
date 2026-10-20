@@ -26,7 +26,7 @@ async def register(
         raise HTTPException(status_code=409, detail="Email already registered")
     user = User(
         email=body.email,
-        password_hash=hash_password(body.password),
+        password_hash=await hash_password(body.password),
         role="admin",
     )
     db.add(user)
@@ -45,7 +45,7 @@ async def login(
 ) -> UserResponse:
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
-    if user is None or not verify_password(body.password, user.password_hash):
+    if user is None or not await verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     session = await create_session(db, user.id)
     db.add(AuditEvent(event_type="USER_LOGIN", user_id=user.id))
