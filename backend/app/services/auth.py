@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -11,12 +12,18 @@ from app.config import settings
 from app.models.base import Session
 
 
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+async def hash_password(password: str) -> str:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None, lambda: bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    )
 
 
-def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
+async def verify_password(plain: str, hashed: str) -> bool:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None, lambda: bcrypt.checkpw(plain.encode(), hashed.encode())
+    )
 
 
 async def create_session(db: AsyncSession, user_id: uuid.UUID) -> Session:
