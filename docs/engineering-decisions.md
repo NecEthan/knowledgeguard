@@ -1,5 +1,9 @@
 # Engineering Decisions
 
+## Auth Rate Limiting
+
+`POST /login` and `POST /register` are both capped at 5 requests/minute per IP. Prevents brute-force credential attacks and bcrypt flooding (register triggers an expensive hash on every call). 6th request gets 429 — window resets after 60 seconds, no permanent lockout. Separate config keys (`login_rate_limit`, `register_rate_limit`) so they can be tuned independently.
+
 ## Auth
 
 A server-side session was chosen because it provides immediate server-side control over authentication and permissions. Each request validates the session against the database, so permission changes take effect on the user's next request without requiring additional session-invalidation logic. This does add an extra database lookup per authenticated request, but the lookup is lightweight and is not expected to noticeably slow down the application. If it becomes a bottleneck at scale, session lookups can be optimised or cached.

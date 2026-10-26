@@ -18,7 +18,9 @@ router = APIRouter(tags=["auth"])
 
 
 @router.post("/register", status_code=201, response_model=UserResponse)
+@limiter.limit(settings.register_rate_limit)
 async def register(
+    request: Request,
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
