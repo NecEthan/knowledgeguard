@@ -7,7 +7,6 @@ from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_current_user, get_db, sensitivity_filters
 from app.models.base import (
-    AuditEvent,
     Document,
     DocumentChunk,
     DocumentVersion,
@@ -79,15 +78,6 @@ async def delete_document(
     # Subquery: all version IDs for this document.
     version_ids_stmt = select(DocumentVersion.id).where(
         DocumentVersion.document_id == document_id
-    )
-
-    # Emit audit event before deletion (document_id stored as plain UUID, no FK).
-    db.add(
-        AuditEvent(
-            event_type="DOCUMENT_DELETED",
-            user_id=current_user.id,
-            document_id=document_id,
-        )
     )
 
     # Delete children in FK-dependency order before deleting parent rows.

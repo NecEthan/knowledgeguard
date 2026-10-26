@@ -4,7 +4,6 @@ Verifies that DELETE /documents/:id:
   - marks all versions DELETED
   - removes all DocumentChunks
   - cancels non-terminal ProcessingJobs
-  - emits DOCUMENT_DELETED audit event
   - makes the document unreachable via all other endpoints
 """
 
@@ -15,7 +14,6 @@ from unittest.mock import patch
 from sqlalchemy import select, update
 
 from app.models.base import (
-    AuditEvent,
     Document,
     DocumentChunk,
     DocumentVersion,
@@ -154,24 +152,6 @@ async def test_delete_removes_completed_job(auth_client, db):
         select(ProcessingJob).where(ProcessingJob.id == job_id)
     )
     assert result.scalar_one_or_none() is None
-
-
-async def test_delete_emits_audit_event(auth_client, db, test_user):
-    doc_id = await _upload(auth_client)
-    user_id = test_user.id  # capture before expire_all
-
-    r = await auth_client.delete(f"/documents/{doc_id}")
-    assert r.status_code == 204
-
-    db.expire_all()
-    result = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.document_id == uuid.UUID(doc_id))
-        .where(AuditEvent.event_type == "DOCUMENT_DELETED")
-    )
-    event = result.scalar_one_or_none()
-    assert event is not None
-    assert event.user_id == user_id
 
 
 # ── Endpoint visibility after deletion ────────────────────────────────────────

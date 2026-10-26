@@ -13,7 +13,7 @@ from app.limiter import limiter
 from app.logging_config import configure_logging
 from app.middleware import RequestLoggingMiddleware
 from app.poller import run_poller
-from app.routers import audit, auth, documents, health, query
+from app.routers import auth, documents, health, query
 from app.services import storage
 
 # Configure structured logging before the app object is created so that
@@ -59,4 +59,3 @@ app.include_router(health.router)
 app.include_router(auth.router, prefix="/auth")
 app.include_router(documents.router, prefix="/documents")
 app.include_router(query.router)
-app.include_router(audit.router, prefix="/audit")

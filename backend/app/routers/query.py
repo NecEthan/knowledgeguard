@@ -9,7 +9,6 @@ Pipeline:
   6. Context assembly
   7. LLM generation (OpenAI chat completion, JSON mode)
   8. Structured response validation
-  9. Audit event (QUERY_EXECUTED)
 """
 
 import time
@@ -22,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.dependencies import get_current_user, get_db
 from app.limiter import limiter
-from app.models.base import AuditEvent, User
+from app.models.base import User
 from app.schemas.query import QueryRequest, QueryResponse
 from app.services.context_builder import (
     build_citations,
@@ -88,14 +87,6 @@ async def run_query(
     top_chunk_ids = [chunk_id for chunk_id, _ in combined[:_CONTEXT_CHUNKS]]
 
     if not top_chunk_ids:
-        db.add(
-            AuditEvent(
-                event_type="QUERY_EXECUTED",
-                user_id=current_user.id,
-                metadata_={"mode": mode, "result_count": 0},
-            )
-        )
-        await db.commit()
         return QueryResponse(
             answer="I don't have enough information to answer that question.",
             citations=[],
@@ -110,15 +101,5 @@ async def run_query(
 
     # 8. Build citations
     citations = build_citations(llm_answer, metadata_by_key)
-
-    # 9. Audit
-    db.add(
-        AuditEvent(
-            event_type="QUERY_EXECUTED",
-            user_id=current_user.id,
-            metadata_={"mode": mode, "result_count": len(citations)},
-        )
-    )
-    await db.commit()
 
     return QueryResponse(answer=llm_answer.answer, citations=citations)

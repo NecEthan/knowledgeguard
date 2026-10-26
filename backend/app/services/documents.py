@@ -102,7 +102,7 @@ async def create_document_records(
     storage_key: str,
     current_user,
 ):
-    from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob
+    from app.models.base import Document, DocumentVersion, ProcessingJob
 
     doc = Document(
         title=title,
@@ -126,8 +126,6 @@ async def create_document_records(
 
     job = ProcessingJob(document_version_id=version.id, status="QUEUED")
     db.add(job)
-    db.add(AuditEvent(event_type="DOCUMENT_UPLOADED", user_id=current_user.id, document_id=doc.id))
-    db.add(AuditEvent(event_type="VERSION_CREATED", user_id=current_user.id, document_id=doc.id, version_id=version.id))
     await db.commit()
 
     return doc, version, job

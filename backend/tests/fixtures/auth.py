@@ -10,7 +10,6 @@ from sqlalchemy import delete, select
 
 from app.main import app
 from app.models.base import (
-    AuditEvent,
     Document,
     DocumentChunk,
     DocumentVersion,
@@ -25,7 +24,7 @@ from app.services.auth import hash_password
 async def test_user(db):
     user = User(
         email=f"test+{uuid.uuid4().hex[:8]}@example.com",
-        password_hash=hash_password("password"),
+        password_hash=await hash_password("password"),
         role="user",
     )
     db.add(user)
@@ -37,7 +36,7 @@ async def test_user(db):
 
     yield user
 
-    # Delete in FK order: chunks/jobs → versions → audit events → documents → sessions → user
+    # Delete in FK order: chunks/jobs → versions → documents → sessions → user
     doc_ids = select(Document.id).where(Document.owner_id == user_id)
     version_ids = select(DocumentVersion.id).where(
         DocumentVersion.document_id.in_(doc_ids)
@@ -51,8 +50,6 @@ async def test_user(db):
     await db.execute(
         delete(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids))
     )
-    await db.execute(delete(AuditEvent).where(AuditEvent.document_id.in_(doc_ids)))
-    await db.execute(delete(AuditEvent).where(AuditEvent.user_id == user_id))
     await db.execute(delete(Document).where(Document.owner_id == user_id))
     await db.execute(delete(Session).where(Session.user_id == user_id))
     await db.execute(delete(User).where(User.id == user_id))
@@ -63,7 +60,7 @@ async def test_user(db):
 async def admin_user(db):
     user = User(
         email=f"admin+{uuid.uuid4().hex[:8]}@example.com",
-        password_hash=hash_password("password"),
+        password_hash=await hash_password("password"),
         role="admin",
     )
     db.add(user)
@@ -86,8 +83,6 @@ async def admin_user(db):
     await db.execute(
         delete(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids))
     )
-    await db.execute(delete(AuditEvent).where(AuditEvent.document_id.in_(doc_ids)))
-    await db.execute(delete(AuditEvent).where(AuditEvent.user_id == user_id))
     await db.execute(delete(Document).where(Document.owner_id == user_id))
     await db.execute(delete(Session).where(Session.user_id == user_id))
     await db.execute(delete(User).where(User.id == user_id))

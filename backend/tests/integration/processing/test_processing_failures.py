@@ -5,7 +5,7 @@ from arq import Retry
 from sqlalchemy import select
 from unittest.mock import patch
 
-from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
+from app.models.base import DocumentVersion, ProcessingJob
 from app.workers.main import process_document
 from tests.helpers.processing import TXT_CONTENT, get_version, run_worker, upload_doc
 
@@ -46,7 +46,7 @@ async def test_process_document_retry_then_success(auth_client, db):
 
 
 async def test_process_document_permanent_failure(auth_client, db):
-    """All 3 attempts fail → version=FAILED, job=FAILED, audit event emitted."""
+    """All 3 attempts fail → version=FAILED, job=FAILED."""
     doc_id = await upload_doc(auth_client, "Permanent Failure Doc", TXT_CONTENT, "policy.txt")
     version = await get_version(db, doc_id)
     version_id = version.id
@@ -74,11 +74,3 @@ async def test_process_document_permanent_failure(auth_client, db):
     assert job.status == "FAILED"
     assert "disk full" in job.last_error
 
-    result = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.event_type == "PROCESSING_FAILED")
-        .where(AuditEvent.document_id == doc_id)
-    )
-    audit = result.scalar_one_or_none()
-    assert audit is not None
-    assert audit.version_id == version_id

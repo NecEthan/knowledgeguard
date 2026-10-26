@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select, update
 
 from app.database import AsyncSessionLocal
-from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
+from app.models.base import DocumentVersion, ProcessingJob
 from app.services import storage
 from app.workers.constants import MAX_TRIES
 
@@ -52,13 +52,6 @@ async def reap_stale_processing_jobs() -> None:
                     update(DocumentVersion)
                     .where(DocumentVersion.id == job.document_version_id)
                     .values(status="FAILED")
-                )
-                db.add(
-                    AuditEvent(
-                        event_type="PROCESSING_FAILED",
-                        document_id=document_id,
-                        version_id=job.document_version_id,
-                    )
                 )
                 keys_to_delete.append(storage_key)
                 logger.error(

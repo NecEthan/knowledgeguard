@@ -32,17 +32,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
     )
-    op.create_table('audit_events',
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('event_type', sa.Text(), nullable=False),
-    sa.Column('user_id', sa.UUID(), nullable=True),
-    sa.Column('document_id', sa.UUID(), nullable=True),
-    sa.Column('version_id', sa.UUID(), nullable=True),
-    sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('documents',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('title', sa.Text(), nullable=False),
@@ -115,6 +104,5 @@ def downgrade() -> None:
     op.drop_table('document_versions')
     op.drop_table('document_permissions')
     op.drop_table('documents')
-    op.drop_table('audit_events')
     op.drop_table('users')
     # ### end Alembic commands ###

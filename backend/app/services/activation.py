@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob
+from app.models.base import Document, DocumentVersion, ProcessingJob
 
 
 class DocumentDeletedError(Exception):
@@ -59,11 +59,3 @@ async def activate_version(
         .values(status="COMPLETE")
     )
 
-    if superseded_id is not None:
-        db.add(
-            AuditEvent(
-                event_type="VERSION_SUPERSEDED",
-                document_id=document_id,
-                version_id=superseded_id,
-            )
-        )

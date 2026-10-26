@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_arq_pool, get_current_user, get_db, sensitivity_filters
-from app.models.base import AuditEvent, Document, User
+from app.models.base import Document, User
 from app.schemas.documents import DocumentResponse, DocumentUploadedResponse
 from app.services import storage
 from app.services.documents import (
@@ -26,7 +26,7 @@ _VALID_SENSITIVITIES = {"STANDARD", "SENSITIVE"}
 
 
 async def _check_sensitivity_permission(
-    sensitivity: str, current_user: User, db: AsyncSession
+    sensitivity: str, current_user: User
 ) -> None:
     if sensitivity not in _VALID_SENSITIVITIES:
         raise HTTPException(
@@ -34,14 +34,6 @@ async def _check_sensitivity_permission(
             detail=f"sensitivity must be one of {sorted(_VALID_SENSITIVITIES)}",
         )
     if sensitivity == "SENSITIVE" and current_user.role != "admin":
-        db.add(
-            AuditEvent(
-                event_type="PERMISSION_DENIED",
-                user_id=current_user.id,
-                metadata_={"action": "upload_sensitive_document"},
-            )
-        )
-        await db.commit()
         raise HTTPException(status_code=403, detail="Only admins can upload sensitive documents")
 
 
@@ -56,7 +48,7 @@ async def upload_document(
 ) -> DocumentUploadedResponse:
     logger.info("document_upload_start", filename=file.filename, sensitivity=sensitivity)
 
-    await _check_sensitivity_permission(sensitivity, current_user, db)
+    await _check_sensitivity_permission(sensitivity, current_user)
 
     content, content_type = await read_and_validate(file)
     content_hash = compute_hash(content)

@@ -6,7 +6,7 @@ import uuid
 from sqlalchemy import select, update
 
 from app.database import AsyncSessionLocal
-from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
+from app.models.base import DocumentVersion, ProcessingJob
 from app.services import storage
 
 
@@ -43,13 +43,6 @@ async def persist_failure(
             update(DocumentVersion)
             .where(DocumentVersion.id == version_id)
             .values(status="FAILED")
-        )
-        db.add(
-            AuditEvent(
-                event_type="PROCESSING_FAILED",
-                document_id=document_id,
-                version_id=version_id,
-            )
         )
         await db.commit()
 

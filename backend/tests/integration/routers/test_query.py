@@ -12,7 +12,6 @@ import pytest
 from sqlalchemy import delete, func, select, update
 
 from app.models.base import (
-    AuditEvent,
     Document,
     DocumentChunk,
     DocumentVersion,
@@ -50,7 +49,7 @@ def _openai_ctx(mock_emb, mock_chat):
     def _ctx():
         with (
             patch("app.routers.query.generate_embeddings", new=mock_emb),
-            patch("app.routers.query.AsyncOpenAI") as mock_cls,
+            patch("app.services.llm.AsyncOpenAI") as mock_cls,
         ):
             instance = MagicMock()
             mock_cls.return_value = instance
@@ -106,7 +105,7 @@ async def indexed_document(db, test_user):
     await db.refresh(chunk)
 
     yield doc, version, chunk
-    # test_user teardown handles doc/version/chunk/audit cleanup.
+    # test_user teardown handles doc/version/chunk cleanup.
 
 
 # ── Auth tests ────────────────────────────────────────────────────────────────
@@ -182,23 +181,6 @@ async def test_query_citation_includes_all_required_fields(auth_client, indexed_
     assert "version_number" in citation
     assert "status" in citation
     assert "updated_at" in citation
-
-
-async def test_query_audit_event_written(auth_client, db, test_user, indexed_document):
-    mock_emb = _mock_embedding_call()
-    mock_chat = _mock_chat_call(answer="Some answer.", citations=[])
-
-    with _openai_ctx(mock_emb, mock_chat):
-        await auth_client.post("/query", json={"question": "test question"})
-
-    result = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.event_type == "QUERY_EXECUTED")
-        .where(AuditEvent.user_id == test_user.id)
-    )
-    event = result.scalar_one_or_none()
-    assert event is not None
-    assert event.metadata_["mode"] == "current"
 
 
 # ── LLM unavailable → 503 ─────────────────────────────────────────────────────
@@ -413,7 +395,7 @@ async def test_restricted_document_not_visible_to_other_user(auth_client, db, te
     # Create User B and their document.
     user_b = User(
         email=f"userb+{uuid.uuid4().hex[:8]}@example.com",
-        password_hash=hash_password("password"),
+        password_hash=await hash_password("password"),
         role="user",
     )
     db.add(user_b)
@@ -485,7 +467,7 @@ async def test_restricted_document_not_visible_historical_mode(auth_client, db, 
     """Permission isolation must hold for mode=historical too."""
     user_c = User(
         email=f"userc+{uuid.uuid4().hex[:8]}@example.com",
-        password_hash=hash_password("password"),
+        password_hash=await hash_password("password"),
         role="user",
     )
     db.add(user_c)

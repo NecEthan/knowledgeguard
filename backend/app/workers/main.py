@@ -35,8 +35,7 @@ async def process_document(ctx: dict, document_version_id: str) -> None:
     6. Store chunks + embeddings.
     7. Update full-text search vector.
     8. Supersede any previous ACTIVE version; activate this version.
-    9. Emit INDEX_UPDATED audit event.
-    10. Mark job COMPLETE.
+    9. Mark job COMPLETE.
     """
     version_id = uuid.UUID(document_version_id)
     job_try: int = ctx.get("job_try", 1)

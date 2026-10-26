@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_arq_pool, get_current_user, get_db, sensitivity_filters
-from app.models.base import AuditEvent, Document, DocumentVersion, ProcessingJob, User
+from app.models.base import Document, DocumentVersion, ProcessingJob, User
 from app.schemas.documents import DocumentVersionResponse, VersionUploadedResponse
 from app.services import storage
 from app.services.activation import activate_version
@@ -72,15 +72,6 @@ async def upload_document_version(
 
         job = ProcessingJob(document_version_id=version.id, status="QUEUED")
         db.add(job)
-
-        db.add(
-            AuditEvent(
-                event_type="VERSION_CREATED",
-                user_id=current_user.id,
-                document_id=document_id,
-                version_id=version.id,
-            )
-        )
 
         await db.commit()
     except Exception:
@@ -197,14 +188,6 @@ async def activate_document_version(
 
     await activate_version(db, version_id, document_id)
 
-    db.add(
-        AuditEvent(
-            event_type="VERSION_ACTIVATED",
-            user_id=current_user.id,
-            document_id=document_id,
-            version_id=version_id,
-        )
-    )
     await db.commit()
 
     ver_result = await db.execute(

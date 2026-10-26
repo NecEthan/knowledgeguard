@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import delete, func, update
 
 from app.database import AsyncSessionLocal
-from app.models.base import AuditEvent, DocumentChunk, DocumentVersion
+from app.models.base import DocumentChunk, DocumentVersion
 from app.services.chunker import estimate_tokens
 from app.services.activation import activate_version
 
@@ -16,7 +16,7 @@ async def persist_results(
     raw_chunks: list[str],
     embeddings: list[list[float]],
 ) -> None:
-    """Atomically write chunks, activate version, and emit audit event."""
+    """Atomically write chunks and activate version."""
     async with AsyncSessionLocal() as db:
        
         # Insert chunks with embeddings.
@@ -42,15 +42,7 @@ async def persist_results(
 
         await activate_version(db, version_id, document_id)
 
-        # Emit INDEX_UPDATED audit event.
-        db.add(
-            AuditEvent(
-                event_type="INDEX_UPDATED",
-                document_id=document_id,
-                version_id=version_id,
-            )
-        )
-        await db.commit();
+        await db.commit()
 
 
 

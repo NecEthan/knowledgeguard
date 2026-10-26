@@ -13,6 +13,10 @@ def _arq_app_state():
     """Set app.state.arq_pool so get_arq_pool doesn't crash (lifespan doesn't run in tests)."""
     pool = AsyncMock()
     pool.enqueue_job = AsyncMock(return_value=None)
+    pool.get = AsyncMock(return_value=None)
+    pool.incr = AsyncMock(return_value=1)
+    pool.expire = AsyncMock(return_value=True)
+    pool.delete = AsyncMock(return_value=1)
     app.state.arq_pool = pool
     yield
     try:

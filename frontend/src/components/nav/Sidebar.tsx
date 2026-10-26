@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { FileText, Search, ShieldCheck } from "lucide-react";
+import { FileText, Search } from "lucide-react";
 import type { User } from "@/types";
 import { getUser, logout } from "@/lib/api/auth";
 import { applicationRoutes } from "@/utils/applicationRoutes";
@@ -25,13 +25,7 @@ export function Sidebar() {
       .catch(() => router.replace(applicationRoutes.login));
   }, [router]);
 
-  const navItems =
-    user?.role === "admin"
-      ? [
-          ...baseNavItems,
-          { href: applicationRoutes.audit, label: "Audit Log", icon: ShieldCheck },
-        ]
-      : baseNavItems;
+  const navItems = baseNavItems;
 
   async function handleLogout() {
     await logout();

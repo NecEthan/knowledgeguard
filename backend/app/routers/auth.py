@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.dependencies import get_arq_pool, get_current_user, get_db
 from app.limiter import limiter
-from app.models.base import AuditEvent, User
+from app.models.base import User
 from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
 from app.services.auth import (
     create_session,
@@ -34,7 +34,6 @@ async def register(
     )
     db.add(user)
     await db.flush()
-    db.add(AuditEvent(event_type="USER_REGISTERED", user_id=user.id))
     await db.commit()
     await db.refresh(user)
     return UserResponse.model_validate(user)
@@ -63,7 +62,6 @@ async def login(
 
     await redis.delete(lockout_key)
     session = await create_session(db, user.id)
-    db.add(AuditEvent(event_type="USER_LOGIN", user_id=user.id))
     await db.commit()
     is_production = settings.app_env != "development"
     response.set_cookie(

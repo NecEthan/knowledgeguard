@@ -1,6 +1,5 @@
 # Re-export all models for backward compatibility.
 # Import from app.models directly or from the individual model files instead.
-from app.models.audit_event import AuditEvent
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.document_version import DocumentVersion
@@ -15,5 +14,4 @@ __all__ = [
     "DocumentVersion",
     "DocumentChunk",
     "ProcessingJob",
-    "AuditEvent",
 ]

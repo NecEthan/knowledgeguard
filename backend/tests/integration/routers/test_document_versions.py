@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from app.models.base import AuditEvent, DocumentVersion, ProcessingJob
+from app.models.base import DocumentVersion, ProcessingJob
 
 
 def _txt_file(name: str = "v2.txt") -> dict:
@@ -90,31 +90,6 @@ async def test_upload_new_version_increments_version_number(auth_client, db, tes
 
     assert r2.json()["version_number"] == 2
     assert r3.json()["version_number"] == 3
-
-
-async def test_upload_new_version_emits_version_created_audit(
-    auth_client, db, test_user
-):
-    doc_id = await _upload_doc(auth_client)
-
-    with (
-        patch("app.services.storage.upload_bytes"),
-        patch("app.services.storage.delete_object"),
-    ):
-        response = await auth_client.post(
-            f"/documents/{doc_id}/versions",
-            files=_txt_file(),
-        )
-    assert response.status_code == 202
-    version_id = response.json()["id"]
-
-    result = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.event_type == "VERSION_CREATED")
-        .where(AuditEvent.document_id == uuid.UUID(doc_id))
-        .where(AuditEvent.version_id == uuid.UUID(version_id))
-    )
-    assert result.scalar_one_or_none() is not None
 
 
 async def test_list_versions_requires_auth(client):
@@ -271,28 +246,6 @@ async def test_previous_active_becomes_superseded(auth_client, db, test_user):
     )
     v1 = result.scalar_one()
     assert v1.status == "SUPERSEDED"
-
-
-async def test_activate_emits_audit_events(auth_client, db, test_user):
-    doc_id, v1_id, v2_id = await _upload_and_setup_versions(auth_client, db)
-
-    await auth_client.patch(f"/documents/{doc_id}/versions/{v2_id}/activate")
-
-    activated = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.event_type == "VERSION_ACTIVATED")
-        .where(AuditEvent.document_id == uuid.UUID(doc_id))
-        .where(AuditEvent.version_id == v2_id)
-    )
-    assert activated.scalar_one_or_none() is not None
-
-    superseded = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.event_type == "VERSION_SUPERSEDED")
-        .where(AuditEvent.document_id == uuid.UUID(doc_id))
-        .where(AuditEvent.version_id == v1_id)
-    )
-    assert superseded.scalar_one_or_none() is not None
 
 
 async def test_activate_requires_auth(client):

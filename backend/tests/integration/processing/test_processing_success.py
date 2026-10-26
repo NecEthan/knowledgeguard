@@ -5,12 +5,12 @@ Covers: full pipeline, empty-file edge case.
 
 from sqlalchemy import select
 
-from app.models.base import AuditEvent, DocumentChunk, DocumentVersion, ProcessingJob
+from app.models.base import DocumentChunk, DocumentVersion, ProcessingJob
 from tests.helpers.processing import TXT_CONTENT, get_version, run_worker, upload_doc
 
 
 async def test_process_document_pipeline(auth_client, db):
-    """Upload → worker processes → ACTIVE version, chunks, embeddings, FTS, audit."""
+    """Upload → worker processes → ACTIVE version, chunks, embeddings, FTS."""
 
     doc_id = await upload_doc(auth_client, "Company Policies", TXT_CONTENT, "policy.txt")
     version = await get_version(db, doc_id)
@@ -47,15 +47,6 @@ async def test_process_document_pipeline(auth_client, db):
     assert [c.chunk_index for c in chunks] == list(range(len(chunks)))
 
     assert version.search_vector is not None
-
-    result = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.event_type == "INDEX_UPDATED")
-        .where(AuditEvent.document_id == doc_id)
-    )
-    audit = result.scalar_one_or_none()
-    assert audit is not None
-    assert audit.version_id == version_id
 
     result = await db.execute(
         select(ProcessingJob).where(ProcessingJob.document_version_id == version_id)

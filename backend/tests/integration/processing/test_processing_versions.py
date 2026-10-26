@@ -9,7 +9,7 @@ import pytest
 from arq import Retry
 from sqlalchemy import select
 
-from app.models.base import AuditEvent, DocumentVersion
+from app.models.base import DocumentVersion
 from app.workers.main import process_document
 from tests.helpers.processing import (
     get_version,
@@ -101,23 +101,3 @@ async def test_previous_version_protected_on_failure(auth_client, db, test_user)
     assert result.scalar_one().status == "SUPERSEDED"
 
 
-async def test_version_superseded_audit_event_emitted(auth_client, db, test_user):
-    """VERSION_SUPERSEDED audit event is emitted for the old ACTIVE version."""
-    user_id = test_user.id  # capture before expire_all
-    doc_id = await upload_doc(auth_client, "Audit Doc", b"Version one.", "v1.txt")
-    v1 = await get_version(db, doc_id)
-    v1_id = v1.id  # capture before expire_all
-    await run_worker(v1.id, b"Version one.")
-
-    v2 = await insert_version(db, doc_id, 2, b"Version two.", user_id)
-    await run_worker(v2.id, b"Version two.")
-
-    db.expire_all()
-    result = await db.execute(
-        select(AuditEvent)
-        .where(AuditEvent.event_type == "VERSION_SUPERSEDED")
-        .where(AuditEvent.document_id == doc_id)
-    )
-    event = result.scalar_one_or_none()
-    assert event is not None
-    assert event.version_id == v1_id
