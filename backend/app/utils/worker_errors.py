@@ -1,13 +1,14 @@
 """Error handling utilities for ARQ worker jobs."""
 
-import logging
 import uuid
 from typing import NoReturn
 
 import openai
 
+import structlog
 from arq import Retry
 
+from app.config import settings
 from app.workers.failure import persist_failure, reset_job_for_retry
 from app.workers.constants import RETRY_DELAYS
 
@@ -18,7 +19,7 @@ _NON_RETRYABLE = (
     openai.BadRequestError,       # malformed request (e.g. input too large)
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def handle_process_job_error(
@@ -38,12 +39,24 @@ async def handle_process_job_error(
     logger.exception("Version %s failed (attempt %d/%d)", version_id, job_try, max_tries)
 
     if isinstance(exc, _NON_RETRYABLE):
-        logger.error("Non-retryable error for version %s — failing immediately", version_id)
+        logger.error("non_retryable_error", version_id=str(version_id))
         await persist_failure(version_id, document_id, error_msg)
         raise exc
 
+    if isinstance(exc, openai.RateLimitError) and job_try < max_tries:
+        delay = settings.worker_rate_limit_retry_delay
+        logger.warning(
+            "openai_rate_limit",
+            version_id=str(version_id),
+            delay_s=delay,
+            attempt=job_try,
+            max_tries=max_tries,
+        )
+        await reset_job_for_retry(version_id)
+        raise Retry(defer=delay) from exc
+
     if job_try < max_tries:
-        delay = RETRY_DELAYS[job_try - 1]
+        delay = RETRY_DELAYS[min(job_try - 1, len(RETRY_DELAYS) - 1)]
         await reset_job_for_retry(version_id)
         raise Retry(defer=delay) from exc
 

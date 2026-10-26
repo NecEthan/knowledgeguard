@@ -16,10 +16,12 @@ import time
 
 import openai
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.dependencies import get_current_user, get_db
+from app.limiter import limiter
 from app.models.base import AuditEvent, User
 from app.schemas.query import QueryRequest, QueryResponse
 from app.services.context_builder import (
@@ -43,7 +45,9 @@ _CONTEXT_CHUNKS = 10
 
 
 @router.post("/query", response_model=QueryResponse)
+@limiter.limit(settings.query_rate_limit)
 async def run_query(
+    request: Request,
     body: QueryRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -39,6 +39,14 @@ A unique database constraint on the hash provides an additional safeguard agains
 
 # LLM Rate Limiting
 
+Single API key means all users share one OpenAI RPM/TPM quota. Three controls protect it:
+
+**Query rate limit** — `POST /query` is capped at 20 requests/minute per IP via slowapi/Redis (same pattern as login). Each query costs 2 OpenAI calls (embed + chat). 20/min allows ~1 query every 3 seconds — fine for interactive use, stops scripted abuse. Limit is per-IP so each user gets an independent budget. Corporate NAT is the edge case — many users behind one IP share the budget. Fix if needed: switch key function in `app/limiter.py` to user ID. To handle more users, upgrade OpenAI tier or add a second API key to multiply quota.
+
+**Worker concurrency cap** — ARQ limited to 5 concurrent jobs (`max_jobs=5`). One document can produce 100+ embedding batches; 10 simultaneous uploads without a cap would blast the embeddings RPM limit. The 6th job waits in Redis — no work lost. 5 jobs × 100 chunks ≈ 500 embedding calls/min, within tier 1 limits. Raise in `config.py` as tier increases.
+
+**Worker 429 retry** — Generic transient retry delay is 10s, too short for OpenAI's 60s rate limit window. Explicit `openai.RateLimitError` branch defers retry by 60s. `MAX_TRIES` raised 3→4 to allow three retries (up to 3 min total) before permanent failure. Worker SDK `max_retries` also raised 2→4 — these are silent client-level retries before ARQ sees the error, safe to increase since worker jobs are not user-facing.
+
 # Concurrency & Infrastructure Sizing
 
 ## Uvicorn Workers (HTTP)

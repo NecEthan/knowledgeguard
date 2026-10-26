@@ -13,7 +13,7 @@ _MODEL = "text-embedding-3-small"
 _BATCH_SIZE = 100
 
 
-async def generate_embeddings(chunks: list[str]) -> list[list[float]]:
+async def generate_embeddings(chunks: list[str], max_retries: int = 2) -> list[list[float]]:
     """Generate 1536-dimension embeddings for a list of chunks.
 
     Batches requests to stay within OpenAI API limits.
@@ -25,7 +25,7 @@ async def generate_embeddings(chunks: list[str]) -> list[list[float]]:
     if settings.mock_llm:
         return [[random.uniform(-0.1, 0.1) for _ in range(1536)] for _ in chunks]
 
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    client = AsyncOpenAI(api_key=settings.openai_api_key, max_retries=max_retries)
     all_embeddings: list[list[float]] = []
 
     for i in range(0, len(chunks), _BATCH_SIZE):
