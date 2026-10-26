@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_arq_pool, get_current_user, get_db
 from app.limiter import limiter
 from app.models.base import AuditEvent, User
 from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
@@ -47,11 +47,21 @@ async def login(
     body: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
+    redis=Depends(get_arq_pool),
 ) -> UserResponse:
+    lockout_key = f"login_fail:{body.email}"
+    fail_count = await redis.get(lockout_key)
+    if fail_count and int(fail_count) >= settings.login_max_attempts:
+        raise HTTPException(status_code=429, detail="Account temporarily locked")
+
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if user is None or not await verify_password(body.password, user.password_hash):
+        await redis.incr(lockout_key)
+        await redis.expire(lockout_key, settings.login_lockout_seconds)
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    await redis.delete(lockout_key)
     session = await create_session(db, user.id)
     db.add(AuditEvent(event_type="USER_LOGIN", user_id=user.id))
     await db.commit()

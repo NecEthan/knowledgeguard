@@ -1,5 +1,13 @@
 # Engineering Decisions
 
+## Per-Email Brute Force Protection
+
+IP rate limiting alone doesn't stop an attacker with rotating proxies targeting a specific account. After 5 failed login attempts for an email address, that email is locked for 15 minutes via a Redis counter (`login_fail:{email}`). Successful login clears the counter. Window and attempt count are config-driven (`login_max_attempts`, `login_lockout_seconds`).
+
+## Password Strength
+
+Minimum 8 characters enforced at the Pydantic schema level. Register also requires at least one uppercase letter and one digit. Validation happens before the bcrypt hash is computed — no wasted CPU on weak passwords.
+
 ## Auth Rate Limiting
 
 `POST /login` and `POST /register` are both capped at 5 requests/minute per IP. Prevents brute-force credential attacks and bcrypt flooding (register triggers an expensive hash on every call). 6th request gets 429 — window resets after 60 seconds, no permanent lockout. Separate config keys (`login_rate_limit`, `register_rate_limit`) so they can be tuned independently.
