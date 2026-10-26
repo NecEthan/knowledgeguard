@@ -35,6 +35,13 @@ def _estimate_cost(prompt_tokens: int, completion_tokens: int) -> float:
 
 async def generate_answer(question: str, context_text: str) -> LLMAnswer:
     """Call OpenAI chat completion and parse structured response."""
+    if settings.mock_llm:
+        logger.info("llm_call_mocked", model=settings.chat_model)
+        return LLMAnswer(
+            answer="[MOCK] This is a load-test placeholder answer.",
+            citations=[],
+        )
+
     user_prompt = f"Context:\n{context_text}\n\nQuestion: {question}"
     start = time.monotonic()
     try:

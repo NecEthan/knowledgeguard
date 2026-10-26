@@ -10,6 +10,10 @@ _db_url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://"
 engine = create_async_engine(
     _db_url,
     echo=False,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_recycle=settings.db_pool_recycle,
+    pool_pre_ping=True,
 )
 
 AsyncSessionLocal = async_sessionmaker(

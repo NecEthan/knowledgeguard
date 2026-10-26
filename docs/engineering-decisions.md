@@ -39,4 +39,23 @@ A unique database constraint on the hash provides an additional safeguard agains
 
 # LLM Rate Limiting
 
+# Concurrency & Infrastructure Sizing
+
+## Uvicorn Workers (HTTP)
+
+The backend runs with `--workers 2`, meaning two separate Python processes each with their own asyncio event loop. A single worker handles I/O-bound work (DB queries, Redis, MinIO) efficiently via async, but bcrypt password hashing is CPU-bound and blocks the event loop while it runs. A second worker means bcrypt on one process does not delay unrelated requests on the other. Two workers were chosen rather than four because each worker holds its own DB connection pool, and the total connection count across all workers must stay within PostgreSQL's `max_connections` limit.
+
+## ARQ Worker (Background Jobs)
+
+The ARQ worker is a separate container that has no HTTP port and never responds to user requests. Its sole job is to pull document processing jobs off the Redis queue and execute the pipeline: download from MinIO, extract text, chunk, embed, persist vectors. This is kept separate from the HTTP workers because the pipeline is slow (seconds to minutes depending on document size) and must not block API responses. One ARQ worker is sufficient for the current load — document processing is not on the critical path for the user, and ARQ supports horizontal scaling (add more worker containers) if throughput needs to increase.
+
+## Database Connection Pool
+
+SQLAlchemy's default pool is `pool_size=5, max_overflow=10` giving 15 maximum connections per process. At 200 concurrent users all making authenticated requests, 15 connections causes severe queuing — requests wait up to 30 seconds for a connection to free up, resulting in timeouts and failures.
+
+The pool is set to `pool_size=30, max_overflow=20` (50 max per worker). With 2 HTTP workers this means up to 100 connections to PostgreSQL. The ARQ worker and poller/reaper also hold connections, bringing the realistic peak to around 110–120. PostgreSQL `max_connections` is set to 200 to give headroom.
+
+`pool_recycle=1800` closes and reopens connections older than 30 minutes to prevent stale connections after network interruptions. `pool_pre_ping=True` tests each borrowed connection before use and discards it if dead, preventing errors from being surfaced to users.
+
+The right long-term solution at higher scale is PgBouncer — a connection pooler that sits in front of PostgreSQL and multiplexes thousands of application connections down to a small number of real database connections, since PostgreSQL is memory-intensive per connection (~5–10 MB RAM each).
 

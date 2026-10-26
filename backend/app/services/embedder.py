@@ -1,6 +1,7 @@
 """OpenAI embedding generation."""
 
 import logging
+import random
 
 from openai import AsyncOpenAI
 
@@ -20,6 +21,9 @@ async def generate_embeddings(chunks: list[str]) -> list[list[float]]:
     """
     if not chunks:
         return []
+
+    if settings.mock_llm:
+        return [[random.uniform(-0.1, 0.1) for _ in range(1536)] for _ in chunks]
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
     all_embeddings: list[list[float]] = []

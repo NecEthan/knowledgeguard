@@ -40,5 +40,12 @@ class Settings(BaseSettings):
     bcrypt_executor_workers: int = 50
     login_rate_limit: str = "5/minute"
 
+    db_pool_size: int = 30
+    db_max_overflow: int = 20
+    db_pool_recycle: int = 1800
+
+    # Set to true to skip real OpenAI calls (load testing / CI)
+    mock_llm: bool = False
+
 
 settings = Settings()

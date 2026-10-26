@@ -3,6 +3,7 @@ services:
 
   postgres:
     image: pgvector/pgvector:pg16
+    command: postgres -c max_connections=200
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-knowledgeguard}
       POSTGRES_USER: postgres
@@ -78,6 +79,8 @@ services:
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-kg_session_dev}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      MOCK_LLM: ${MOCK_LLM:-false}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-5/minute}
     depends_on:
       postgres:
         condition: service_healthy
