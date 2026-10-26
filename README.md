@@ -123,61 +123,26 @@ The long term goal is to make company knowledge as easy to access as asking a co
 
 ## Development
 
+### Test Account
+
+| Field | Value |
+|---|---|
+| Email | test1@gmail.com |
+| Password | password |
+
 ### Prerequisites
 
 - Docker + Docker Compose
 - Node.js 20
 - Python 3.12 + [uv](https://docs.astral.sh/uv/)
 
-### Start all services
+### Run the app
 
 ```bash
 docker compose up -d
 ```
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev        # dev server — http://localhost:3000
-npm run build      # production build
-npm run lint       # ESLint
-npm run format     # Prettier (write)
-npm run format:check  # Prettier (check only)
-npm test           # Jest unit tests
-```
-
-### Backend
-
-```bash
-cd backend
-uv sync --extra dev
-uv run uvicorn app.main:app --reload  # dev server — http://localhost:8000
-uv run ruff check .                   # lint
-uv run ruff format .                  # format
-```
-
-### Database migrations
-
-```bash
-# Generate a new migration (run inside the backend container)
-docker exec knowledgeguard-backend-1 uv run alembic revision --autogenerate -m "description"
-
-# Apply migrations
-docker exec knowledgeguard-backend-1 uv run alembic upgrade head
-```
-
-### E2E tests
-
-Run from `playwright-tests/`. Requires all services running (`docker compose up -d`).
-
-```bash
-cd playwright-tests
-npm test           # headless
-npm run test:headed  # visible browser
-npm run test:ui      # Playwright interactive UI
-```
+Starts everything — postgres, redis, minio, backend, worker, and frontend. App available at http://localhost:3000.
 
 ---
 
