@@ -22,7 +22,10 @@ async def upload_doc(
     auth_client, title: str, content: bytes, filename: str = "doc.txt"
 ) -> uuid.UUID:
     """Upload a document via the API and return its document id."""
-    with patch("app.services.storage.upload_bytes"): # mock file upload to minio without returning anything
+    with (
+        patch("app.services.storage.upload_bytes"),  # mock file upload to minio without returning anything
+        patch("arq.connections.ArqRedis.enqueue_job"),  # don't leak real jobs onto the dev redis queue
+    ):
         response = await auth_client.post(
             "/documents",
             files={"file": (filename, content, "text/plain")},
